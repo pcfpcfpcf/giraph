@@ -274,6 +274,20 @@ class DeterministicPlanner:
         return build_graph(goal, policy_context, analysis, self.name)
 
 
+class PermissivePlanner:
+    """Ablation: does not read the request. Every allowed tool's effects are requested, nothing is
+    denied, every external address is fair game. What remains is policy plus the monitor's obligations."""
+
+    name = "permissive(ablation)"
+
+    def plan(self, goal: str, policy_context: dict[str, Any]) -> PlanGraph:
+        allowed = list(policy_context.get("allowed_tools", []))
+        baseline = analyse_request(goal, allowed)
+        keys = frozenset(k for t in allowed if (s := spec_for(t)) for k, _ in _requests_in(s))
+        analysis = baseline.model_copy(update={"requested": keys, "negated": frozenset(), "external_targets": frozenset({"*"})})
+        return build_graph(goal, policy_context, analysis, self.name)
+
+
 _LLM_PROMPT = """You are the planning stage of a security monitor for a tool-using assistant.
 You see ONLY the user's request and the tools it may use. Decide, from the request alone:
 

@@ -105,6 +105,8 @@ class Envelope(BaseModel):
     def permits_destination(self, destination: Destination, address: str | None = None) -> bool:
         if destination is not Destination.EXTERNAL:
             return destination in self.destinations
+        if "*" in self.external_targets:  # ablation only: any external address
+            return destination in self.destinations
         return destination in self.destinations and address is not None and address.lower() in self.external_targets
 
     def narrowed(self, *, remove_effects: frozenset[Effect] = frozenset()) -> Envelope:

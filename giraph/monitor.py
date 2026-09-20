@@ -144,21 +144,16 @@ def trace_authority(action: CandidateAction, spec: ToolSpec | None, ws: WorkingS
     if not values:
         return Authority.AGENT, "no selecting values; agent-composed"
     goal = squash(ws.goal)
-    unexplained = [(k, v) for k, v in values if squash(v) not in goal]
-    if not unexplained:
+    if all(squash(v) in goal for _, v in values):
         return Authority.AUTHENTICATED_USER, "every selecting value was named in the request"
-    mirrored = _mirrored_instruction(action, unexplained, ws.untrusted)
-    if mirrored is not None:
-        return mirrored, f"tool call mirrors an instruction in {mirrored.value} content"
     trusted_text = [squash(t) for t in ws.trusted]
     untrusted_text = [(squash(t), level) for t, level in ws.untrusted]
     worst = Authority.AUTHENTICATED_USER
     for key, value in values:
         needle = squash(value)
-        in_trusted = any(needle in t for t in trusted_text)
+        if any(needle in t for t in trusted_text):
+            continue  # the request or a trusted result produced it; untrusted text repeating it changes nothing
         hits = [level for t, level in untrusted_text if needle in t]
-        if in_trusted:
-            continue
         if hits:
             level = max(hits, key=lambda a: a.rank)
             return level, f"{key}={value!r} appears only in {level.value} content"
@@ -246,10 +241,15 @@ def check(graph: PlanGraph, request: DefenseRequest) -> MonitorResult:
     spec = spec_for(action.tool)
     allowed = list(request.policy_context.get("allowed_tools", []))
     authority, evidence = trace_authority(action, spec, ws)
+    goal = squash(ws.goal)
+    unexplained = [(k, v) for k, v in _driving_values(action, spec) if squash(v) not in goal]
+    mirrored = _mirrored_instruction(action, unexplained, ws.untrusted) is not None
+    if mirrored:
+        evidence += "; the tool call is spelled out in untrusted content"
     if spec is None:
         return MonitorResult(
             action_type=action.type, tool=action.tool, node_id=None, effect=None, divergence=Divergence.UNKNOWN_TOOL,
-            authority=authority, authority_evidence=evidence, notes=("tool not in effect schema",),
+            authority=authority, authority_evidence=evidence, mirrored=mirrored, notes=("tool not in effect schema",),
         )
     effect, override = spec.effect_for(action.arguments)
     address = str(action.arguments.get(spec.destination_arg)) if spec.destination_arg and action.arguments.get(spec.destination_arg) else None
@@ -294,7 +294,7 @@ def check(graph: PlanGraph, request: DefenseRequest) -> MonitorResult:
     return MonitorResult(
         action_type=action.type, tool=spec.name, node_id=node.id if node else None, effect=effect,
         divergence=divergence, authority=authority, authority_evidence=evidence,
-        destination=destination, address=address, confirmed=confirmed, mirrored=evidence.startswith("tool call mirrors"),
+        destination=destination, address=address, confirmed=confirmed, mirrored=mirrored,
         satisfied=tuple(satisfied), violated=tuple(violated), pruned=pruned, notes=tuple(notes),
     )
 

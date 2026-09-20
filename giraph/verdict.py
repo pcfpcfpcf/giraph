@@ -37,7 +37,10 @@ def _authority_codes(result: MonitorResult) -> list[str]:
 
 
 def verdict(result: MonitorResult, candidate: CandidateAction) -> DefenseDecision:
-    untrusted = result.authority.is_untrusted
+    # Values authored by untrusted content are untrusted. An instruction spelled out in untrusted
+    # content only counts as untrusted authorship for effects the request never asked for: when the
+    # user asked for the step, the same words in a letter cannot revoke that.
+    untrusted = result.authority.is_untrusted or (result.mirrored and result.divergence is not Divergence.NONE)
     asking = candidate.type is ActionType.REQUEST_CONFIRMATION
     irreversible = result.effect is not None and result.effect.irreversible
 
