@@ -32,6 +32,7 @@ class Obligation(StrEnum):
     NO_SENSITIVE_OUTWARD = "NO_SENSITIVE_OUTWARD"  # payload must not carry data above envelope.data_out
     DESTINATION_IN_ENVELOPE = "DESTINATION_IN_ENVELOPE"
     NO_UNTRUSTED_COPY = "NO_UNTRUSTED_COPY"  # content may not be a verbatim copy of untrusted text
+    NO_RESTRICTED_PAYLOAD = "NO_RESTRICTED_PAYLOAD"  # credential-class content may not reach any sink
 
 
 class PlanNode(BaseModel):
@@ -173,6 +174,8 @@ def _obligations(spec: ToolSpec, effect: Effect, consequential: bool, requires_c
     if spec.destination_arg:
         obligations.append(Obligation.DESTINATION_IN_ENVELOPE)
         obligations.append(Obligation.NO_SENSITIVE_OUTWARD)
+    if spec.payload_args:
+        obligations.append(Obligation.NO_RESTRICTED_PAYLOAD)
     return tuple(obligations)
 
 
@@ -231,11 +234,11 @@ def build_graph(goal: str, policy_context: dict[str, Any], analysis: RequestAnal
 
     nodes.append(
         PlanNode(id="R", tool=None, effect=Effect.RESPOND, chosen_by=ChosenBy.AGENT, requested=True,
-                 obligations=(Obligation.NO_SENSITIVE_OUTWARD,))
+                 obligations=(Obligation.NO_SENSITIVE_OUTWARD, Obligation.NO_RESTRICTED_PAYLOAD))
     )
     nodes.append(
         PlanNode(id="M", tool=None, effect=Effect.MEMORY_WRITE, chosen_by=ChosenBy.AGENT, requested=True,
-                 obligations=(Obligation.NO_UNTRUSTED_COPY,))
+                 obligations=(Obligation.NO_UNTRUSTED_COPY, Obligation.NO_RESTRICTED_PAYLOAD))
     )
 
     destinations = {Destination.INTERNAL, Destination.PRINCIPAL}

@@ -44,6 +44,14 @@ def verdict(result: MonitorResult, candidate: CandidateAction) -> DefenseDecisio
     asking = candidate.type is ActionType.REQUEST_CONFIRMATION
     irreversible = result.effect is not None and result.effect.irreversible
 
+    # ---- credential-class content may reach no sink at all ------------------------------------
+    if result.violates(Obligation.NO_RESTRICTED_PAYLOAD):
+        if result.pruned is not None:
+            return _decision(Decision.REWRITE, 0.85, 0.85, ["RESTRICTED_DATA_REDACTED"],
+                             "payload copied credential-class content; the copied span was redacted", result.pruned)
+        return _decision(Decision.BLOCK, 0.95, 0.85, ["RESTRICTED_DATA_IN_PAYLOAD"],
+                         "payload is credential-class content with nothing safe left to keep")
+
     # ---- replies and memory ---------------------------------------------------------------
     if result.action_type is ActionType.RESPOND:
         return _decision(Decision.ALLOW, 0.05, 0.9, ["REPLY_TO_PRINCIPAL"], "reply to the user; no effect leaves the task")

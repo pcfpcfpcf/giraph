@@ -39,7 +39,8 @@ class WorkingSet(BaseModel):
     goal: str
     trusted: tuple[str, ...]
     untrusted: tuple[tuple[str, Authority], ...]
-    sensitive: tuple[str, ...]
+    sensitive: tuple[str, ...]  # confidential or above: may not leave the organisation
+    restricted: tuple[str, ...]  # credential class: may not reach any sink, not even the principal
 
     @classmethod
     def from_request(cls, request: DefenseRequest) -> WorkingSet:
@@ -47,6 +48,7 @@ class WorkingSet(BaseModel):
         trusted: list[str] = [request.user_goal]
         untrusted: list[tuple[str, Authority]] = []
         sensitive: list[str] = []
+        restricted: list[str] = []
         for item in request.conversation:
             provs = [records[p] for p in item.provenance_ids if p in records]
             levels = [authority_from_trust(p.trust_level) for p in provs]
@@ -59,7 +61,10 @@ class WorkingSet(BaseModel):
                 trusted.append(item.content)
             if any(_sensitivity(p.sensitivity).rank >= Sensitivity.CONFIDENTIAL.rank for p in provs):
                 sensitive.append(item.content)
-        return cls(goal=request.user_goal, trusted=tuple(trusted), untrusted=tuple(untrusted), sensitive=tuple(sensitive))
+            if any(_sensitivity(p.sensitivity) is Sensitivity.RESTRICTED for p in provs):
+                restricted.append(item.content)
+        return cls(goal=request.user_goal, trusted=tuple(trusted), untrusted=tuple(untrusted),
+                   sensitive=tuple(sensitive), restricted=tuple(restricted))
 
 
 class MonitorResult(BaseModel):
@@ -107,6 +112,43 @@ def overlaps(content: str, texts: tuple[str, ...] | list[str], minimum: int = OV
         return any(needle in squash(t) for t in texts)
     probes = {needle[i : i + minimum] for i in range(0, len(needle) - minimum + 1, minimum // 2)}
     return any(probe in squash(t) for t in texts for probe in probes)
+
+
+REDACT_RUN = 16  # a verbatim run this long copied from restricted content is redacted
+
+
+def redact(text: str, restricted: tuple[str, ...]) -> tuple[str, bool]:
+    """Mask maximal runs of ``text`` (>= REDACT_RUN chars, whitespace-normalised) that occur verbatim in
+    restricted content. Returns (masked text, whether anything was masked)."""
+    if not text or not restricted:
+        return text, False
+    haystacks = [squash(t) for t in restricted]
+    lowered = text.lower()
+    marks = [False] * len(text)
+    i = 0
+    while i + REDACT_RUN <= len(text):
+        probe = " ".join(lowered[i : i + REDACT_RUN].split())
+        if len(probe) >= REDACT_RUN - 2 and any(probe in h for h in haystacks):
+            for j in range(i, i + REDACT_RUN):
+                marks[j] = True
+            i += 1
+        else:
+            i += 1
+    if not any(marks):
+        return text, False
+    out: list[str] = []
+    i = 0
+    while i < len(text):
+        if marks[i]:
+            j = i
+            while j < len(text) and marks[j]:
+                j += 1
+            out.append("[REDACTED]")
+            i = j
+        else:
+            out.append(text[i])
+            i += 1
+    return "".join(out), True
 
 
 def _driving_values(action: CandidateAction, spec: ToolSpec | None) -> list[tuple[str, str]]:
@@ -220,21 +262,29 @@ def check(graph: PlanGraph, request: DefenseRequest) -> MonitorResult:
     # ---- non-tool actions ----------------------------------------------------------------
     if action.type is ActionType.RESPOND:
         node = graph.node_for(None, Effect.RESPOND)
+        masked, leaked = redact(action.content or "", ws.restricted)
+        pruned = action.model_copy(update={"content": masked}) if leaked and masked.strip("[REDACTED] \n") else None
         return MonitorResult(
             action_type=action.type, tool=None, node_id=node.id if node else None, effect=Effect.RESPOND,
             divergence=Divergence.NONE, authority=Authority.AGENT, authority_evidence="reply to the principal",
-            destination=Destination.PRINCIPAL, satisfied=(Obligation.NO_SENSITIVE_OUTWARD,),
+            destination=Destination.PRINCIPAL,
+            violated=(Obligation.NO_RESTRICTED_PAYLOAD,) if leaked else (),
+            satisfied=(Obligation.NO_SENSITIVE_OUTWARD,) + (() if leaked else (Obligation.NO_RESTRICTED_PAYLOAD,)),
+            pruned=pruned,
         )
     if action.type is ActionType.MEMORY_WRITE:
         node = graph.node_for(None, Effect.MEMORY_WRITE)
         copied = overlaps(action.content or "", [t for t, _ in ws.untrusted])
         level = max((l for t, l in ws.untrusted if overlaps(action.content or "", [t])), key=lambda a: a.rank, default=Authority.AGENT)
+        masked, leaked = redact(action.content or "", ws.restricted)
+        violated = ((Obligation.NO_UNTRUSTED_COPY,) if copied else ()) + ((Obligation.NO_RESTRICTED_PAYLOAD,) if leaked else ())
         return MonitorResult(
             action_type=action.type, tool=None, node_id=node.id if node else None, effect=Effect.MEMORY_WRITE,
             divergence=Divergence.NONE, authority=level if copied else Authority.AGENT,
             authority_evidence="memory content copied verbatim from untrusted content" if copied else "agent-composed memory",
-            destination=Destination.INTERNAL,
-            violated=(Obligation.NO_UNTRUSTED_COPY,) if copied else (), satisfied=() if copied else (Obligation.NO_UNTRUSTED_COPY,),
+            destination=Destination.INTERNAL, violated=violated,
+            satisfied=tuple(o for o in (Obligation.NO_UNTRUSTED_COPY, Obligation.NO_RESTRICTED_PAYLOAD) if o not in violated),
+            pruned=action.model_copy(update={"content": masked}) if leaked and masked.strip("[REDACTED] \n") else None,
         )
 
     # ---- tool calls ------------------------------------------------------------------------
@@ -269,6 +319,21 @@ def check(graph: PlanGraph, request: DefenseRequest) -> MonitorResult:
     satisfied: list[Obligation] = []
     violated: list[Obligation] = []
     confirmed = action.digest() in request.history_digest.confirmations_granted
+    if spec.payload_args:
+        redacted_args = dict(action.arguments)
+        leaked = False
+        for arg in spec.payload_args:
+            value = action.arguments.get(arg)
+            if isinstance(value, str):
+                redacted_args[arg], hit = redact(value, ws.restricted)
+                leaked = leaked or hit
+        if leaked:
+            violated.append(Obligation.NO_RESTRICTED_PAYLOAD)
+            notes.append("restricted content redacted from payload")
+            if pruned is None and node is not None:
+                pruned = CandidateAction(type=ActionType.TOOL_CALL, tool=spec.name, arguments=redacted_args)
+        else:
+            satisfied.append(Obligation.NO_RESTRICTED_PAYLOAD)
     if node is not None:
         for obligation in node.obligations:
             ok = True
