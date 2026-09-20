@@ -1,0 +1,24 @@
+[project]
+name = "giraph"
+version = "0.1.0"
+description = "Plan-graph conformance defense for tool-using LLM agents (SENTINEL, IndabaX Tunisia 2026)"
+requires-python = ">=3.12"
+dependencies = [
+  "pydantic>=2.8,<3",
+  "fastapi>=0.115",
+  "uvicorn>=0.30",
+  "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pyyaml>=6"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["giraph*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
