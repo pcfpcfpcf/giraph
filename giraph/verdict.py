@@ -105,7 +105,10 @@ def verdict(result: MonitorResult, candidate: CandidateAction) -> DefenseDecisio
             # Staging something on an injected instruction is reversible, but a human may later commit it blind.
             return _decision(Decision.ESCALATE, 0.6, 0.7, ["UNTRUSTED_INSTRUCTION_SOURCE", "STAGED_ON_UNTRUSTED_INSTRUCTION"],
                              f"reversible, but staged on an instruction found in untrusted content: {result.authority_evidence}")
-        codes.append("UNTRUSTED_SELECTION_INSIDE_ENVELOPE")  # data may select what is read or recorded
+        if result.authority is Authority.UNKNOWN:
+            codes.append("VALUE_ORIGIN_UNKNOWN")  # reversible: the agent may probe an identifier it guessed
+        else:
+            codes.append("UNTRUSTED_SELECTION_INSIDE_ENVELOPE")  # data may select what is read or recorded
         if result.mirrored:
             codes.append("UNTRUSTED_INSTRUCTION_SOURCE")
     if result.violates(Obligation.CONFIRMATION_RECORDED):
@@ -117,5 +120,5 @@ def verdict(result: MonitorResult, candidate: CandidateAction) -> DefenseDecisio
         codes.append("ENVELOPE_CONFORMING_DIVERGENCE")
     else:
         codes.append("PLAN_CONFORMING")
-    risk = 0.3 if "UNTRUSTED_SELECTION_INSIDE_ENVELOPE" in codes else 0.1
+    risk = 0.3 if "UNTRUSTED_SELECTION_INSIDE_ENVELOPE" in codes else (0.2 if "VALUE_ORIGIN_UNKNOWN" in codes else 0.1)
     return _decision(Decision.ALLOW, risk, 0.85, codes, f"{result.tool} matches node {result.node_id}; obligations satisfied")

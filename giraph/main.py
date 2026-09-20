@@ -2,15 +2,24 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
 
 from giraph.defense import Giraph
 from giraph.schema import DefenseDecision, DefenseRequest
 
 app = FastAPI(title="GIRAPH", docs_url=None, redoc_url=None, openapi_url=None)
 giraph = Giraph()
+STATIC = Path(__file__).parent / "static"
+
+
+@app.get("/")
+def index() -> FileResponse:
+    """The observability page: plan graph, envelope, and one row per decision."""
+    return FileResponse(STATIC / "index.html")
 
 
 @app.get("/healthz")

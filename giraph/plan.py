@@ -284,8 +284,15 @@ You see ONLY the user's request and the tools it may use. Decide, from the reque
 Irreversible steps (use these exact keys): {keys}
 Allowed tools: {tools}
 
-Rules: only list keys from the list above. When unsure, leave a key out of "requested".
-A step named under "negated" must never appear under "requested".
+Rules:
+- Only list keys from the list above. A step named under "negated" must never appear under "requested".
+- "requested" means the user asked for that step to happen in this task, including conditionally
+  ("confirm it once I approve", "execute it after I confirm"): the human approval itself is checked
+  separately, so a conditional request still counts as requested.
+- "negated" means the user explicitly said NOT to perform that specific step ("do not execute it",
+  "don't confirm the payment"). A step the user merely did not mention is neither requested nor negated.
+- A step's key names one tool; "do not execute" negates the execute step only, not a confirm step.
+- When genuinely unsure, leave the key out of both lists.
 Answer with one JSON object and nothing else:
 {{"requested": [], "negated": [], "external_targets": []}}
 
@@ -323,7 +330,7 @@ class LLMPlanner:
         try:
             raw = self._complete(_LLM_PROMPT.format(keys=keys, tools=allowed, goal=goal))
             answer = _LLMAnswer.model_validate_json(_extract_json(raw))
-        except (ValidationError, ValueError, OSError) as exc:
+        except Exception as exc:  # noqa: BLE001 - the planner must never take the defense down
             graph = self._fallback.plan(goal, policy_context)
             return graph.model_copy(update={"planner": "deterministic(fallback)", "notes": graph.notes + (f"llm planner failed: {type(exc).__name__}",)})
         valid = set(keys)
@@ -360,7 +367,50 @@ def _openai_compatible(url: str | None, model: str | None):
     return complete
 
 
+def _gemini(model: str | None, api_key: str | None):
+    """Gemini generateContent client. The key is read from the environment, never from a file in the repo."""
+    import httpx
+
+    name = model or os.environ.get("GIRAPH_GEMINI_MODEL", "gemini-3.5-flash-lite")
+    key = api_key or os.environ.get("GEMINI_API_KEY", "")
+    if not key:
+        raise RuntimeError("GEMINI_API_KEY is not set")
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{name}:generateContent"
+
+    body = {
+        "contents": [{"parts": [{"text": ""}]}],
+        "generationConfig": {
+            "temperature": 0,
+            "maxOutputTokens": 2048,  # thinking tokens count against this budget
+            "responseMimeType": "application/json",
+            "thinkingConfig": {"thinkingLevel": "minimal"},  # Gemini 3.x; a structured extraction needs no deliberation
+        },
+    }
+
+    def complete(prompt: str) -> str:
+        import time
+
+        payload = {**body, "contents": [{"parts": [{"text": prompt}]}]}
+        for attempt in range(4):
+            response = httpx.post(url, headers={"x-goog-api-key": key}, json=payload, timeout=30.0)
+            if response.status_code == 429 and attempt < 3:  # free tier: 20 requests/minute
+                match = re.search(r"retry in ([\d.]+)s", response.text)
+                time.sleep(min(15.0, float(match.group(1)) + 0.5 if match else 6.0))
+                continue
+            response.raise_for_status()
+            return str(response.json()["candidates"][0]["content"]["parts"][0]["text"])
+        raise RuntimeError("unreachable")
+
+    return complete
+
+
 def planner_from_env() -> Planner:
-    if os.environ.get("GIRAPH_PLANNER", "deterministic").lower() == "llm":
+    """GIRAPH_PLANNER = deterministic (default) | llm (OpenAI-compatible local server) | gemini."""
+    choice = os.environ.get("GIRAPH_PLANNER", "deterministic").lower()
+    if choice == "llm":
         return LLMPlanner()
+    if choice == "gemini":
+        planner = LLMPlanner(complete=_gemini(None, None))
+        planner.name = "gemini"
+        return planner
     return DeterministicPlanner()

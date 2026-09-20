@@ -1,0 +1,6 @@
+# Run configuration for the SENTINEL simulator when GIRAPH plans with an LLM: the plan graph is
+# built inside the first decision of each task, so that call may take longer than the 5 s default.
+#   uv run sentinel eval public --defense-url http://127.0.0.1:8080 --config ../competition.yaml
+defense:
+  timeout_s: 90
+  fail_mode: closed
