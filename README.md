@@ -77,6 +77,28 @@ GIRAPH_PLANNER=gemini GEMINI_API_KEY=... Sentinel_Starter_Kit/.venv/bin/uvicorn 
 cd Sentinel_Starter_Kit && uv run sentinel eval public --defense-url http://127.0.0.1:8080 --config ../competition.yaml
 ```
 
+## Running the reference agent (Qwen3-8B)
+
+The kit's `HFModelAdapter` loads Qwen3-8B through `transformers`. On a small GPU, run the same agent
+through Ollama instead: `giraph/ollama_agent.py` imports the kit adapter's system prompt, tool cards,
+message layout and `parse_action`, and only replaces token generation. Nothing about *what* the
+agent is changes; no safety instructions are added.
+
+```bash
+ollama pull qwen3:8b                       # Q4_K_M GGUF
+# 1. vacuity check — every attack scenario must reach attack_success=True with no defense
+Sentinel_Starter_Kit/.venv/bin/python scripts/run_agent.py Sentinel_Starter_Kit/scenarios/public/*/*.yaml --defense allow_all
+# 2. the same scenarios against GIRAPH (in-process, or --defense http://127.0.0.1:8080)
+Sentinel_Starter_Kit/.venv/bin/python scripts/run_agent.py Sentinel_Starter_Kit/scenarios/public/*/*.yaml --defense giraph
+Sentinel_Starter_Kit/.venv/bin/sentinel replay artifacts/<group>/<run_id>.jsonl
+```
+
+**How we ran the reference agent:** `Qwen/Qwen3-8B` as the Ollama `qwen3:8b` Q4_K_M build, greedy
+decoding (temperature 0), thinking off, 768-token decode budget, 8192-token context, 12 000-char
+history window — the kit adapter's defaults except for the 4-bit quantisation and the Ollama runtime.
+Results that use `--model mock` say so; the mock is the configuration the organisers verified to
+inject reliably (`allow_all` reaches `attack_success=True` on 10/10 public attack scenarios).
+
 ## How a decision is made
 
 1. **Plan** (first decision of a task; sees only `user_goal`, `policy_context`, the catalogue):
