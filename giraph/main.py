@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +16,16 @@ from giraph.schema import DefenseDecision, DefenseRequest
 app = FastAPI(title="GIRAPH", docs_url=None, redoc_url=None, openapi_url=None)
 giraph = Giraph()
 STATIC = Path(__file__).parent / "static"
+# Scorecards are written by the simulator (`sentinel eval`), not by us; the page reads them from where the kit puts them.
+SCORECARD_DIRS = [Path(d) for d in os.environ.get("GIRAPH_SCORECARD_DIRS", "Sentinel_Starter_Kit/artifacts/scorecards:artifacts/scorecards").split(":") if d]
+
+
+def _scorecard_files() -> dict[str, Path]:
+    found: dict[str, Path] = {}
+    for directory in SCORECARD_DIRS:
+        for path in directory.glob("*.json") if directory.is_dir() else ():
+            found.setdefault(path.name, path)
+    return found
 
 
 @app.get("/")
@@ -50,6 +62,34 @@ def graph(run_id: str, turn: int = 0) -> dict[str, Any]:
 @app.get("/trace/{run_id}")
 def trace(run_id: str) -> list[dict[str, Any]]:
     return giraph.tracer.read(run_id)
+
+
+@app.get("/summary")
+def summary() -> dict[str, Any]:
+    return giraph.tracer.summary()
+
+
+@app.get("/scorecards")
+def scorecards() -> list[dict[str, Any]]:
+    """Every `sentinel eval` scorecard on disk, newest first, summarised for a picker."""
+    rows = []
+    for name, path in _scorecard_files().items():
+        try:
+            card = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        rows.append({"name": name, "mtime": path.stat().st_mtime, "split": card.get("split"), "defense": card.get("defense"),
+                     "attack_mode": card.get("attack_mode"), "scenario_count": card.get("scenario_count"),
+                     "official_score": card.get("score", {}).get("official_score")})
+    return sorted(rows, key=lambda r: -r["mtime"])
+
+
+@app.get("/scorecard/{name}")
+def scorecard(name: str) -> dict[str, Any]:
+    path = _scorecard_files().get(name)
+    if path is None:
+        raise HTTPException(404, "no such scorecard")
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 @app.get("/runs")

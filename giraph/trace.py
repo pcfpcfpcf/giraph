@@ -67,6 +67,39 @@ class TraceWriter:
         with self._lock:
             return list(self._memory.get(run_id, []))
 
+    def summary(self) -> dict[str, Any]:
+        """Aggregate view over every run seen by this process: decision mix, latency, reason codes, one row per run."""
+        with self._lock:
+            runs = {run_id: list(entries) for run_id, entries in sorted(self._memory.items())}
+        entries = [e for es in runs.values() for e in es]
+        kinds = ("allow", "rewrite", "escalate", "block")
+        decisions = dict.fromkeys(kinds, 0)
+        by_effect: dict[str, dict[str, int]] = defaultdict(lambda: dict.fromkeys(kinds, 0))
+        codes: dict[str, int] = defaultdict(int)
+        violated: dict[str, int] = defaultdict(int)
+        for e in entries:
+            decisions[e["decision"]] = decisions.get(e["decision"], 0) + 1
+            by_effect[e["effect"] or "—"][e["decision"]] += 1
+            for c in e["reason_codes"]:
+                codes[c] += 1
+            for o in e["obligations"]["violated"]:
+                violated[o] += 1
+        latencies = sorted(e["latency_ms"] for e in entries)
+        pct = (lambda q: latencies[min(len(latencies) - 1, int(q * len(latencies)))]) if latencies else (lambda q: None)
+        rows = []
+        for run_id, es in runs.items():
+            mix = {d: sum(1 for e in es if e["decision"] == d) for d in kinds}
+            rows.append({"run_id": run_id, "goal": es[0].get("goal", ""), "planner": es[0]["graph"]["planner"],
+                         "decisions": len(es), "mix": mix, "max_risk": max(e["risk"] for e in es),
+                         "turns": len({e["turn"] for e in es})})
+        return {"runs": len(runs), "decisions": len(entries), "mix": decisions,
+                "latency_ms": {"median": pct(0.5), "p95": pct(0.95)},
+                "planners": sorted({e["graph"]["planner"] for e in entries}),
+                "by_effect": {k: by_effect[k] for k in sorted(by_effect)},
+                "reason_codes": sorted(codes.items(), key=lambda kv: -kv[1]),
+                "violated": sorted(violated.items(), key=lambda kv: -kv[1]),
+                "rows": rows}
+
     def runs(self) -> list[dict[str, str]]:
         """One row per run: its id and the user goal it was planned for (from the first record)."""
         with self._lock:

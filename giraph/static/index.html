@@ -23,6 +23,20 @@
   aside .run { padding: 8px 10px; border-radius: 6px; cursor: pointer; font-size: 13px; }
   aside .run:hover, aside .run.active { background: var(--panel); }
   aside .run .goal-line { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  aside .overview { font-weight: 600; margin-bottom: 8px; border-bottom: 1px solid var(--line); border-radius: 6px 6px 0 0; }
+  .mix { display: inline-flex; height: 8px; width: 100%; border-radius: 4px; overflow: hidden; background: var(--line); }
+  .mix i { display: block; height: 100%; }
+  .mix .allow { background: var(--allow); } .mix .rewrite { background: var(--rewrite); } .mix .escalate { background: var(--escalate); } .mix .block { background: var(--block); }
+  .score { display: flex; align-items: center; gap: 18px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 16px; margin-bottom: 12px; flex-wrap: wrap; }
+  .score .big { font-size: 34px; font-weight: 600; line-height: 1; }
+  .score .big.ok { color: var(--allow); } .score .big.bad { color: var(--block); }
+  .score .meta { color: var(--muted); font-size: 12px; }
+  .score .parts { display: flex; gap: 10px; flex-wrap: wrap; margin-left: auto; }
+  .score .parts span { font-family: var(--mono); font-size: 12px; padding: 2px 8px; border: 1px solid var(--line); border-radius: 4px; }
+  .stat.good b { color: var(--allow); } .stat.warn b { color: var(--escalate); } .stat.bad b { color: var(--block); }
+  .yes { color: var(--allow); font-family: var(--mono); } .no { color: var(--block); font-family: var(--mono); } .na { color: var(--muted); font-family: var(--mono); }
+  .risk { font-family: var(--mono); }
+  .risk.hi { color: var(--block); } .risk.mid { color: var(--escalate); }
   aside .run .id { font-family: var(--mono); font-size: 11px; color: var(--muted); word-break: break-all; margin-top: 2px; }
   section { padding: 16px 20px; overflow: auto; }
   h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 18px 0 8px; }
@@ -71,7 +85,7 @@
   <h1>GIRAPH <span>plan-graph conformance · observability</span></h1>
   <div class="spacer"></div>
   <label class="mono">turn <select id="turn"></select></label>
-  <label class="mono">trace file <input type="file" id="file" accept=".jsonl"></label>
+  <label class="mono">trace / scorecard file <input type="file" id="file" accept=".jsonl,.json"></label>
   <button id="refresh">refresh</button>
 </header>
 <main>
@@ -81,17 +95,29 @@
 <script>
 const $ = (s, el = document) => el.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-let state = { runs: [], run: null, trace: [], graph: null, turn: 0, offline: false };
+let state = { runs: [], run: null, trace: [], graph: null, turn: 0, offline: false, summary: null, cards: [], cardName: null, card: null };
 
 async function loadRuns() {
   try { state.runs = await (await fetch('/runs')).json(); } catch { state.runs = []; }
   renderRuns();
 }
+async function openOverview() {
+  state.run = null; state.offline = false; state.trace = []; state.graph = null;
+  try { state.summary = await (await fetch('/summary')).json(); } catch { state.summary = null; }
+  try { state.cards = await (await fetch('/scorecards')).json(); } catch { state.cards = []; }
+  if (!state.cards.some(c => c.name === state.cardName)) state.cardName = (state.cards.find(c => c.defense === 'http_defense') || state.cards[0])?.name ?? null;
+  await loadCard(); await loadRuns(); renderOverview();
+}
+async function loadCard() {
+  state.card = null;
+  if (!state.cardName) return;
+  try { state.card = await (await fetch('/scorecard/' + encodeURIComponent(state.cardName))).json(); } catch { state.card = null; }
+}
 function renderRuns() {
-  $('#runs').innerHTML = state.runs.length ? state.runs.map(r => `<div class="run ${r.run_id === state.run ? 'active' : ''}" data-run="${esc(r.run_id)}" title="${esc(r.goal)}">
+  $('#runs').innerHTML = `<div class="run overview ${state.run === null && !state.offline ? 'active' : ''}" data-run="">all runs · overview</div>` + (state.runs.length ? state.runs.map(r => `<div class="run ${r.run_id === state.run ? 'active' : ''}" data-run="${esc(r.run_id)}" title="${esc(r.goal)}">
       <div class="goal-line">${esc(r.goal || r.run_id)}</div><div class="id">${esc(r.run_id)}</div></div>`).join('')
-    : '<div class="empty">no runs yet</div>';
-  $('#runs').querySelectorAll('.run').forEach(el => el.onclick = () => openRun(el.dataset.run));
+    : '<div class="empty">no runs yet</div>');
+  $('#runs').querySelectorAll('.run').forEach(el => el.onclick = () => el.dataset.run ? openRun(el.dataset.run) : openOverview());
 }
 async function openRun(run) {
   state.run = run; state.offline = false;
@@ -107,14 +133,106 @@ async function selectTurn(turn) {
 }
 $('#file').onchange = async e => {
   const text = await e.target.files[0].text();
+  if (/^\s*\{/.test(text)) {  // a scorecard, not a trace
+    state.card = JSON.parse(text); state.cardName = e.target.files[0].name; state.run = null; state.offline = false;
+    if (!state.summary) { try { state.summary = await (await fetch('/summary')).json(); } catch {} }
+    renderRuns(); renderOverview(); return;
+  }
   state.trace = text.split('\n').filter(Boolean).map(l => JSON.parse(l));
   state.run = state.trace[0]?.run_id ?? 'file'; state.offline = true; state.graph = null; state.turn = 0;
   render();
 };
-$('#refresh').onclick = () => state.offline ? render() : (state.run ? openRun(state.run) : loadRuns());
+$('#refresh').onclick = () => state.offline ? render() : (state.run ? openRun(state.run) : openOverview());
 $('#turn').onchange = e => selectTurn(Number(e.target.value));
 
 const authClass = a => a === 'unknown' ? 'unknown' : (a === 'agent' ? 'agent' : (/untrusted|adversary/.test(a) ? 'untrusted' : 'trusted'));
+
+const mixBar = (mix, total) => `<span class="mix">${['allow','rewrite','escalate','block'].map(d => mix[d] ? `<i class="${d}" style="width:${100 * mix[d] / total}%" title="${d} ${mix[d]}"></i>` : '').join('')}</span>`;
+const riskClass = r => r >= 0.7 ? 'hi' : (r >= 0.4 ? 'mid' : '');
+
+const fmt = (v, d = 3) => v == null ? '—' : (typeof v === 'number' ? Number(v.toFixed(d)).toString() : esc(v));
+const lowGood = (v, warn, bad) => v == null ? '' : (v >= bad ? 'bad' : (v >= warn ? 'warn' : 'good'));
+const highGood = (v, warn, bad) => v == null ? '' : (v <= bad ? 'bad' : (v <= warn ? 'warn' : 'good'));
+const yn = v => v == null ? '<span class="na">—</span>' : (v ? '<span class="yes">yes</span>' : '<span class="no">no</span>');
+
+function renderScorecard() {
+  const c = state.card;
+  const picker = state.cards.length ? `<select id="card">${state.cards.map(k => `<option value="${esc(k.name)}" ${k.name === state.cardName ? 'selected' : ''}>${esc(k.split)} · ${esc(k.defense)} · ${esc(k.attack_mode)} · ${k.scenario_count} scenarios · ${fmt(k.official_score)}</option>`).join('')}${state.cardName && !state.cards.some(k => k.name === state.cardName) ? `<option selected>${esc(state.cardName)}</option>` : ''}</select>` : '';
+  let html = `<h2>Eval scorecard <span class="principle">— from <code>sentinel eval</code>; the jury score is computed elsewhere</span></h2>`;
+  if (!c) return html + `<div class="empty">No scorecard found. Run <code>sentinel eval public --defense-url http://127.0.0.1:8080 --json</code>, or load a scorecard .json file above.</div>`;
+  const m = c.metrics || {}, sc = c.score || {};
+  const parts = ['safety', 'usefulness', 'robustness', 'precision', 'efficiency_factor', 'ood_factor', 'critical_penalty_factor'].filter(k => sc[k] != null);
+  html += `<div class="score">
+    <div><div class="big ${sc.official_score >= 0.9 ? 'ok' : (sc.official_score < 0.5 ? 'bad' : '')}">${fmt(sc.official_score)}</div><div class="meta">official score · core ${fmt(sc.core)}</div></div>
+    <div class="meta">${esc(c.split)} split · ${esc(c.defense)} · attack ${esc(c.attack_mode)} · ${c.scenario_count} scenarios (${m.attack_count ?? '?'} attack / ${m.benign_count ?? '?'} benign) · seed ${c.run_seed}<br>
+      eligible ${yn(sc.eligible)}${sc.gate_reason ? ' · ' + esc(sc.gate_reason) : ''} · ${esc(c.benchmark_version)} · digest <span class="mono">${esc((c.deterministic_digest || '').slice(0, 16))}</span></div>
+    <div class="parts">${parts.map(k => `<span>${k.replace(/_factor$/, '')} ${fmt(sc[k])}</span>`).join('')}${picker}</div>
+  </div>`;
+  const tiles = [
+    ['asr', 'attack success', lowGood(m.asr, 0.05, 0.2)], ['btu', 'benign task utility', highGood(m.btu, 0.9, 0.7)],
+    ['cvr', 'critical violations', lowGood(m.cvr, 0.01, 0.1)], ['fbr', 'false block', lowGood(m.fbr, 0.05, 0.2)],
+    ['uer', 'unnecessary escalation', lowGood(m.uer, 0.05, 0.2)], ['tui', 'tool utility', highGood(m.tui, 0.8, 0.6)],
+    ['dfi', 'data-flow integrity', highGood(m.dfi, 0.95, 0.8)], ['escalation_rate', 'escalation rate', ''],
+    ['brier', 'Brier', lowGood(m.brier, 0.15, 0.3)], ['ece', 'ECE', lowGood(m.ece, 0.15, 0.3)],
+    ['defense_errors', 'defense errors', lowGood(m.defense_errors, 1, 1)],
+  ];
+  html += `<div class="summary">` + tiles.map(([k, label, cls]) => `<div class="stat ${cls}"><b>${fmt(m[k])}</b><small>${label}<br><span class="mono">${k}</span></small></div>`).join('') +
+    `<div class="stat"><b>${fmt(m.latency_median_ms, 1)}<small> / ${fmt(m.latency_p95_ms, 1)} ms</small></b><small>latency median / p95 (round trip)</small></div></div>`;
+
+  const dom = c.by_domain || {};
+  if (Object.keys(dom).length) html += `<h2>By domain</h2><table><thead><tr><th>domain</th><th>scenarios</th><th>attack / benign</th><th>ASR</th><th>BTU</th><th>CVR</th><th>FBR</th><th>UER</th><th>TUI</th><th>DFI</th><th>errors</th></tr></thead><tbody>` +
+    Object.entries(dom).map(([d, v]) => `<tr><td class="mono">${esc(d)}</td><td class="mono">${v.scenario_count}</td><td class="mono">${v.attack_count} / ${v.benign_count}</td>${['asr','btu','cvr','fbr','uer','tui','dfi','defense_errors'].map(k => `<td class="mono">${fmt(v[k])}</td>`).join('')}</tr>`).join('') + `</tbody></table>`;
+
+  const known = new Set(state.runs.map(r => r.run_id));
+  html += `<h2>Scenario outcomes</h2><table><colgroup><col style="width:22%"><col style="width:8%"><col style="width:13%"><col style="width:5%"><col style="width:7%"><col style="width:5%"><col style="width:9%"><col style="width:6%"><col style="width:7%"><col style="width:9%"><col></colgroup><thead><tr><th>scenario</th><th>domain</th><th>attack family</th><th>diff.</th><th>steps</th><th>task</th><th>attack blocked</th><th>critical</th><th>data flow</th><th>decisions</th><th>findings</th></tr></thead><tbody>` +
+    (c.outcomes || []).map(o => { const mix = { allow: 0, rewrite: 0, escalate: 0, block: 0 }; (o.decisions || []).forEach(d => mix[d.decision] = (mix[d.decision] || 0) + 1);
+      const live = known.has(o.run_id);
+      return `<tr class="${live ? 'row' : ''}" data-run="${esc(o.run_id)}" title="${live ? 'open trace' : 'no trace in this server process'}">
+        <td class="mono">${esc(o.scenario_id)}${o.hard_negative ? ' <small style="color:var(--muted)">hard-negative</small>' : ''}</td><td class="mono">${esc(o.domain)}</td>
+        <td class="mono">${o.attack_present ? esc(o.attack_family) : '<span class="na">benign</span>'}</td><td class="mono">${o.difficulty ?? '—'}</td><td class="mono">${o.steps}${o.termination !== 'completed' ? ' · ' + esc(o.termination) : ''}</td>
+        <td>${yn(o.task_success)}</td><td>${o.attack_present ? yn(!o.attack_success) : '<span class="na">—</span>'}</td><td>${o.critical_violation ? '<span class="no">yes</span>' : '<span class="yes">no</span>'}</td><td>${o.data_flow_violation ? '<span class="no">violated</span>' : '<span class="yes">ok</span>'}</td>
+        <td>${mixBar(mix, (o.decisions || []).length || 1)}</td><td>${(o.findings || []).map(f => `<div class="mono" style="color:var(--escalate)">${esc(typeof f === 'string' ? f : JSON.stringify(f))}</div>`).join('')}</td></tr>`; }).join('') + `</tbody></table>`;
+  return html;
+}
+
+function renderOverview() {
+  const s = state.summary;
+  $('#turn').innerHTML = '';
+  let html = renderScorecard();
+  if (!s || !s.runs) {
+    $('#view').innerHTML = html + '<h2>Live decisions</h2><div class="empty">No runs seen by this server yet — point the simulator at it (<code>--defense-url http://127.0.0.1:8080</code>), or load a trace file.</div>';
+    wireOverview(); return;
+  }
+  const pctOf = n => s.decisions ? (100 * n / s.decisions).toFixed(1) + '%' : '—';
+  html += `<h2>Live decisions <span class="principle">— everything this server process has decided</span></h2><div class="summary">
+    <div class="stat"><b>${s.runs}</b><small>runs</small></div>
+    <div class="stat"><b>${s.decisions}</b><small>decisions</small></div>
+    <div class="stat"><b style="color:var(--allow)">${s.mix.allow}</b><small>allow · ${pctOf(s.mix.allow)}</small></div>
+    <div class="stat"><b style="color:var(--rewrite)">${s.mix.rewrite}</b><small>rewrite · ${pctOf(s.mix.rewrite)}</small></div>
+    <div class="stat"><b style="color:var(--escalate)">${s.mix.escalate}</b><small>escalate · ${pctOf(s.mix.escalate)}</small></div>
+    <div class="stat"><b style="color:var(--block)">${s.mix.block}</b><small>block · ${pctOf(s.mix.block)}</small></div>
+    <div class="stat"><b>${s.latency_ms.median ?? '—'}<small> / ${s.latency_ms.p95 ?? '—'} ms</small></b><small>latency median / p95</small></div>
+    <div class="stat"><b>${esc(s.planners.join(', ') || '—')}</b><small>planner</small></div>
+  </div>`;
+
+  html += `<h2>Decisions by effect</h2><table><thead><tr><th>effect</th><th>allow</th><th>rewrite</th><th>escalate</th><th>block</th><th style="width:30%">mix</th></tr></thead><tbody>` +
+    Object.entries(s.by_effect).map(([eff, m]) => { const t = m.allow + m.rewrite + m.escalate + m.block; return `<tr><td class="mono">${esc(eff)}</td><td class="mono">${m.allow}</td><td class="mono">${m.rewrite}</td><td class="mono">${m.escalate}</td><td class="mono">${m.block}</td><td>${mixBar(m, t)}</td></tr>`; }).join('') + `</tbody></table>`;
+
+  html += `<h2>Reason codes</h2><div class="codes">${s.reason_codes.map(([c, n]) => `<span>${esc(c)} <b>${n}</b></span>`).join('')}</div>`;
+  if (s.violated.length) html += `<h2>Obligations violated</h2><div class="codes">${s.violated.map(([c, n]) => `<span class="viol">${esc(c)} <b>${n}</b></span>`).join('')}</div>`;
+
+  html += `<h2>Runs</h2><table><colgroup><col><col style="width:22%"><col style="width:7%"><col style="width:7%"><col style="width:18%"><col style="width:8%"></colgroup><thead><tr><th>request</th><th>run</th><th>turns</th><th>decisions</th><th>mix</th><th>max risk</th></tr></thead><tbody>` +
+    s.rows.map(r => `<tr class="row" data-run="${esc(r.run_id)}">
+      <td>${esc(r.goal)}</td><td class="mono" style="color:var(--muted)">${esc(r.run_id)}</td>
+      <td class="mono">${r.turns}</td><td class="mono">${r.decisions}</td><td>${mixBar(r.mix, r.decisions)}</td>
+      <td><span class="risk ${riskClass(r.max_risk)}">${r.max_risk.toFixed(2)}</span></td></tr>`).join('') + `</tbody></table>`;
+  $('#view').innerHTML = html;
+  wireOverview();
+}
+function wireOverview() {
+  $('#view').querySelectorAll('tr.row').forEach(tr => tr.onclick = () => openRun(tr.dataset.run));
+  const sel = $('#card'); if (sel) sel.onchange = async e => { state.cardName = e.target.value; await loadCard(); renderOverview(); };
+}
 
 function render() {
   const rows = state.trace.filter(e => e.turn === state.turn);
@@ -182,7 +300,7 @@ function render() {
   $('#view').innerHTML = html;
   $('#view').querySelectorAll('tr.row').forEach(tr => tr.onclick = () => { const d = $(`tr.detail[data-i="${tr.dataset.i}"]`); d.hidden = !d.hidden; });
 }
-loadRuns();
+openOverview();
 </script>
 </body>
 </html>
