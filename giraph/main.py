@@ -53,5 +53,5 @@ def trace(run_id: str) -> list[dict[str, Any]]:
 
 
 @app.get("/runs")
-def runs() -> list[str]:
+def runs() -> list[dict[str, str]]:
     return giraph.tracer.runs()

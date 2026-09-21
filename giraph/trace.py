@@ -22,6 +22,7 @@ def record(request: DefenseRequest, graph: PlanGraph, result: MonitorResult, dec
         "run_id": request.run_id,
         "turn": request.history_digest.turn_index,
         "step": request.step_id,
+        "goal": request.user_goal,
         "action": {"type": action.type.value, "tool": action.tool, "arguments": action.arguments,
                    "content": (action.content or "")[:200] or None, "final": action.final,
                    "confirmation_for": action.confirmation_for.tool if action.confirmation_for else None},
@@ -66,6 +67,7 @@ class TraceWriter:
         with self._lock:
             return list(self._memory.get(run_id, []))
 
-    def runs(self) -> list[str]:
+    def runs(self) -> list[dict[str, str]]:
+        """One row per run: its id and the user goal it was planned for (from the first record)."""
         with self._lock:
-            return sorted(self._memory)
+            return [{"run_id": run_id, "goal": entries[0].get("goal", "")} for run_id, entries in sorted(self._memory.items())]

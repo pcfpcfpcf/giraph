@@ -20,8 +20,10 @@
   select, button, input[type=file] { background: #0f1216; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; font: inherit; }
   main { display: grid; grid-template-columns: 300px 1fr; min-height: calc(100vh - 53px); }
   aside { border-right: 1px solid var(--line); padding: 12px; overflow: auto; }
-  aside .run { padding: 8px 10px; border-radius: 6px; cursor: pointer; font-family: var(--mono); font-size: 12px; word-break: break-all; }
+  aside .run { padding: 8px 10px; border-radius: 6px; cursor: pointer; font-size: 13px; }
   aside .run:hover, aside .run.active { background: var(--panel); }
+  aside .run .goal-line { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  aside .run .id { font-family: var(--mono); font-size: 11px; color: var(--muted); word-break: break-all; margin-top: 2px; }
   section { padding: 16px 20px; overflow: auto; }
   h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 18px 0 8px; }
   .goal { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; white-space: pre-wrap; }
@@ -86,7 +88,8 @@ async function loadRuns() {
   renderRuns();
 }
 function renderRuns() {
-  $('#runs').innerHTML = state.runs.length ? state.runs.map(r => `<div class="run ${r === state.run ? 'active' : ''}" data-run="${esc(r)}">${esc(r)}</div>`).join('')
+  $('#runs').innerHTML = state.runs.length ? state.runs.map(r => `<div class="run ${r.run_id === state.run ? 'active' : ''}" data-run="${esc(r.run_id)}" title="${esc(r.goal)}">
+      <div class="goal-line">${esc(r.goal || r.run_id)}</div><div class="id">${esc(r.run_id)}</div></div>`).join('')
     : '<div class="empty">no runs yet</div>';
   $('#runs').querySelectorAll('.run').forEach(el => el.onclick = () => openRun(el.dataset.run));
 }
@@ -129,7 +132,8 @@ function render() {
   const envelope = g ? g.envelope : { effects: first.graph.envelope, denied_tools: first.graph.denied };
   const allEffects = ['read','prepare','record','commit','outward_send','read_credential','disable_control','memory_write','respond'];
 
-  let html = `<div class="summary">
+  let html = first.goal ? `<h2>Request</h2><div class="goal">${esc(first.goal)}</div>` : '';
+  html += `<div class="summary">
     <div class="stat"><b>${rows.length}</b><small>decisions</small></div>
     <div class="stat"><b style="color:var(--allow)">${counts.allow}</b><small>allow</small></div>
     <div class="stat"><b style="color:var(--rewrite)">${counts.rewrite}</b><small>rewrite</small></div>
