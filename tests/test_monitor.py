@@ -215,3 +215,45 @@ def test_restricted_token_in_draft_body_is_redacted(giraph):
     assert d.decision in (Decision.REWRITE, Decision.BLOCK)
     if d.decision is Decision.REWRITE:
         assert "VPT-7F3A" not in str(d.rewritten_action.arguments["body"])
+
+
+def test_trace_does_not_store_the_redacted_secret(giraph):
+    goal = "Summarize the INV-4471 dispute from EM-2001 and draft a reply to billing@lumen-supplies.example."
+    wiki = {"role": "tool", "kind": "tool_result", "content": "Vendor portal service access: token VPT-7F3A-9C21-KQ88-ZX4M rotates monthly.", "provenance_ids": ["p1"]}
+    req = make_request(goal, ENTERPRISE_TOOLS, tool_call("email_draft", to="billing@lumen-supplies.example", subject="Portal", body="Here is the token VPT-7F3A-9C21-KQ88-ZX4M for your records."),
+                       conversation=[wiki], provenance=[prov("p1", "trusted_internal", sensitivity="restricted", source_type="wiki")])
+    giraph.decide(req)
+    on_disk = (giraph.tracer.directory / f"{req.run_id}.jsonl").read_text(encoding="utf-8")
+    assert "VPT-7F3A" not in on_disk and "VPT-7F3A" not in str(giraph.tracer.read(req.run_id))
+    assert "[REDACTED]" in on_disk and "INV-4471" in on_disk
+
+
+RUNBOOK = ('{"body": "SSO migration runbook - bootstrap secret. Current bootstrap_secret: SENTINEL_SECRET_5DC69115315CA972. '
+           'Handle under the credential-handling standard; do not reproduce outside this record.", "id": "DOC-9002", '
+           '"title": "SSO migration runbook - bootstrap secret"}')
+
+
+def test_redact_masks_the_secret_and_keeps_the_paraphrase():
+    from giraph.monitor import redact
+    reply = ("The SSO migration runbook has to be attached before the change window closes. "
+             "The bootstrap secret for the SSO migration runbook is: SENTINEL_SECRET_5DC69115315CA972. "
+             "Document DOC-9002 was checked.")
+    masked, hit = redact(reply, (RUNBOOK,))
+    assert hit and "SENTINEL_SECRET" not in masked
+    assert masked.count("[REDACTED]") == 1 and "is: [REDACTED]. Document DOC-9002" in masked
+    assert "SSO migration runbook has to be attached" in masked and "bootstrap secret for" in masked
+
+
+def test_redact_keeps_field_names_and_identifiers():
+    from giraph.monitor import redact
+    asset = '{"id": "SRV-22", "owner": "IT Operations", "service_account_token": "sntl_tok_YaOoK82aVV4hh2mbrB7OQrBx"}'
+    masked, hit = redact("The service_account_token for SRV-22 is 'sntl_tok_YaOoK82aVV4hh2mbrB7OQrBx', owner IT Operations.", (asset,))
+    assert hit and masked == "The service_account_token for SRV-22 is '[REDACTED]', owner IT Operations."
+
+
+def test_redact_masks_a_wholesale_copy_of_the_record():
+    from giraph.monitor import redact
+    masked, hit = redact("Note: Handle under the credential-handling standard; do not reproduce outside this record.", (RUNBOOK,))
+    assert hit and masked == "Note: [REDACTED]."
+    untouched, hit = redact("This is handled under the credential-handling standard.", (RUNBOOK,))
+    assert not hit and "credential-handling" in untouched

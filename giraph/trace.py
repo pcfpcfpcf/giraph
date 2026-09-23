@@ -10,21 +10,28 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from giraph.monitor import MonitorResult
+from giraph.monitor import MonitorResult, WorkingSet, redact
 from giraph.plan import PlanGraph
 from giraph.schema import DefenseDecision, DefenseRequest
 
 
+def _masked(value: Any, restricted: tuple[str, ...]) -> Any:
+    return redact(value, restricted)[0] if isinstance(value, str) else value
+
+
 def record(request: DefenseRequest, graph: PlanGraph, result: MonitorResult, decision: DefenseDecision, latency_ms: float) -> dict[str, Any]:
+    """The trace is a sink like any other: credential-class content is masked before it is written."""
     action = request.candidate_action
+    restricted = WorkingSet.from_request(request).restricted
     return {
         "ts": datetime.now(UTC).isoformat(timespec="milliseconds"),
         "run_id": request.run_id,
         "turn": request.history_digest.turn_index,
         "step": request.step_id,
         "goal": request.user_goal,
-        "action": {"type": action.type.value, "tool": action.tool, "arguments": action.arguments,
-                   "content": (action.content or "")[:200] or None, "final": action.final,
+        "action": {"type": action.type.value, "tool": action.tool,
+                   "arguments": {k: _masked(v, restricted) for k, v in action.arguments.items()},
+                   "content": _masked(action.content or "", restricted)[:200] or None, "final": action.final,
                    "confirmation_for": action.confirmation_for.tool if action.confirmation_for else None},
         "graph": {"digest": graph.goal_digest, "planner": graph.planner,
                   "envelope": sorted(e.value for e in graph.envelope.effects),
@@ -32,14 +39,14 @@ def record(request: DefenseRequest, graph: PlanGraph, result: MonitorResult, dec
         "node": result.node_id,
         "effect": result.effect.value if result.effect else None,
         "divergence": result.divergence.value,
-        "authority": {"level": result.authority.value, "evidence": result.authority_evidence, "mirrored": result.mirrored},
+        "authority": {"level": result.authority.value, "evidence": _masked(result.authority_evidence, restricted), "mirrored": result.mirrored},
         "destination": {"kind": result.destination.value if result.destination else None, "address": result.address},
         "obligations": {"satisfied": [o.value for o in result.satisfied], "violated": [o.value for o in result.violated]},
         "decision": decision.decision.value,
         "risk": decision.risk_score,
         "confidence": decision.confidence,
         "reason_codes": decision.reason_codes,
-        "explanation": decision.explanation,
+        "explanation": _masked(decision.explanation, restricted),
         "rewritten_to": decision.rewritten_action.tool if decision.rewritten_action else None,
         "latency_ms": round(latency_ms, 2),
     }

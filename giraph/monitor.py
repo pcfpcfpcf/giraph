@@ -114,40 +114,79 @@ def overlaps(content: str, texts: tuple[str, ...] | list[str], minimum: int = OV
     return any(probe in squash(t) for t in texts for probe in probes)
 
 
-REDACT_RUN = 16  # a verbatim run this long copied from restricted content is redacted
+REDACT_RUN = 16  # a verbatim run this long copied from restricted content is a candidate for redaction
+REDACT_COPY = 48  # a copied run this long is masked whole: it is the record itself, not a phrase from it
+SECRET_MIN = 16  # a credential value: at least this long, carries a digit, and sits verbatim in restricted content
+_WORD = re.compile(r"\S+")
+_TRIM = "\"'`,.;:()[]{}<>"
+
+
+def _secret_like(word: str, haystacks: list[str]) -> bool:
+    core = word.strip(_TRIM)
+    return len(core) >= SECRET_MIN and any(c.isdigit() for c in core) and any(core.lower() in h for h in haystacks)
 
 
 def redact(text: str, restricted: tuple[str, ...]) -> tuple[str, bool]:
-    """Mask maximal runs of ``text`` (>= REDACT_RUN chars, whitespace-normalised) that occur verbatim in
-    restricted content. Returns (masked text, whether anything was masked)."""
+    """Mask the credential values in ``text`` that were copied from restricted content, plus any run of
+    at least REDACT_COPY characters (whitespace-normalised) copied verbatim from it. Masks land on
+    word boundaries so what remains still reads. Returns (masked text, whether anything was masked).
+
+    A restricted record is mostly prose around a secret (its title, field names, handling notes);
+    an agent paraphrasing that record echoes such phrases without leaking anything. Only the value
+    itself, or a wholesale copy of the record, may not reach a sink."""
     if not text or not restricted:
         return text, False
     haystacks = [squash(t) for t in restricted]
+    words = list(_WORD.finditer(text))
+    if not words:
+        return text, False
     lowered = text.lower()
+    # Character-level marks for verbatim runs, as before; words are then masked if they hold a
+    # secret-shaped token, or lie inside a copied run long enough to be the record itself.
     marks = [False] * len(text)
-    i = 0
-    while i + REDACT_RUN <= len(text):
+    for i in range(len(text) - REDACT_RUN + 1):
         probe = " ".join(lowered[i : i + REDACT_RUN].split())
         if len(probe) >= REDACT_RUN - 2 and any(probe in h for h in haystacks):
             for j in range(i, i + REDACT_RUN):
                 marks[j] = True
-            i += 1
-        else:
-            i += 1
-    if not any(marks):
+    mask_word = [False] * len(words)
+    for n, m in enumerate(words):
+        if _secret_like(m.group(), haystacks):
+            mask_word[n] = True
+    # Group consecutive fully-marked words into runs and measure them whitespace-normalised. A word
+    # only partly inside a matching window is a boundary, not part of the copy.
+    n = 0
+    while n < len(words):
+        if not all(marks[words[n].start() : words[n].end()]):
+            n += 1
+            continue
+        k = n
+        while k < len(words) and all(marks[words[k].start() : words[k].end()]):
+            k += 1
+        run = " ".join(w.group() for w in words[n:k])
+        if len(run) >= REDACT_COPY:
+            for j in range(n, k):
+                mask_word[j] = True
+        n = k
+    if not any(mask_word):
         return text, False
     out: list[str] = []
-    i = 0
-    while i < len(text):
-        if marks[i]:
-            j = i
-            while j < len(text) and marks[j]:
-                j += 1
-            out.append("[REDACTED]")
-            i = j
-        else:
-            out.append(text[i])
-            i += 1
+    pos = 0
+    n = 0
+    while n < len(words):
+        if not mask_word[n]:
+            n += 1
+            continue
+        k = n
+        while k < len(words) and mask_word[k]:
+            k += 1
+        first, last = words[n], words[k - 1]
+        lead = first.group()[: len(first.group()) - len(first.group().lstrip(_TRIM))]
+        trail = last.group()[len(last.group().rstrip(_TRIM)) :]
+        out.append(text[pos : first.start()] + lead + "[REDACTED]" + trail)
+        pos = last.end()
+        n = k
+    out.append(text[pos:])
     return "".join(out), True
 
 

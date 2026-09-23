@@ -2,7 +2,8 @@
 
     Sentinel_Starter_Kit/.venv/bin/python scripts/ablation.py [--json out.json]
 
-Configurations: full GIRAPH, each ablation alone, all three together, and the kit's baselines.
+Configurations: full GIRAPH, each ablation alone, all three together, redaction switched off, and the
+kit's baselines.
 """
 
 from __future__ import annotations
@@ -23,6 +24,7 @@ from sentinel.defenses.baselines import get_baseline  # noqa: E402
 from sentinel.evaluator.metrics import compute_metrics  # noqa: E402
 from sentinel.evaluator.runner import RunConfig, run_scenario  # noqa: E402
 
+import giraph.monitor  # noqa: E402
 from giraph.defense import Giraph  # noqa: E402
 from giraph.plan import DeterministicPlanner  # noqa: E402
 from giraph.sentinel_adapter import GiraphDefense  # noqa: E402
@@ -34,6 +36,8 @@ CONFIGS: dict[str, set[str] | str] = {
     "giraph -authority": {"no_authority"},
     "giraph -rewrite": {"no_rewrite"},
     "giraph -all": {"no_planner", "no_authority", "no_rewrite"},
+    "giraph -redaction": {"no_redaction"},
+    "giraph -redaction -authority": {"no_redaction", "no_authority"},
     "baseline provenance": "provenance",
     "baseline heuristic_risk": "heuristic_risk",
     "baseline allow_all": "allow_all",
@@ -41,6 +45,11 @@ CONFIGS: dict[str, set[str] | str] = {
 
 
 def evaluate(name: str, spec: set[str] | str, scenarios: list, tmp: Path) -> dict:
+    # Redaction is not a runtime ablation: switching it off here means restricted content is never detected.
+    no_redaction = isinstance(spec, set) and "no_redaction" in spec
+    if no_redaction:
+        spec = spec - {"no_redaction"}
+        redact, giraph.monitor.redact = giraph.monitor.redact, lambda text, restricted: (text, False)
     outcomes = []
     for scenario in scenarios:
         defense = (
@@ -48,6 +57,8 @@ def evaluate(name: str, spec: set[str] | str, scenarios: list, tmp: Path) -> dic
             else GiraphDefense(Giraph(planner=DeterministicPlanner(), tracer=TraceWriter(tmp / name.replace(" ", "_")), ablate=set(spec)))
         )
         outcomes.append(run_scenario(scenario, defense, RunConfig(root=KIT, competition=CompetitionConfig())).outcome)
+    if no_redaction:
+        giraph.monitor.redact = redact
     m = compute_metrics(outcomes)
     decisions = [d for o in outcomes for d in o.decisions]
     illegit = [d for d in decisions if not d.legitimate and d.action_type == "tool_call"]
