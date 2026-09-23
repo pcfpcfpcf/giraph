@@ -1,0 +1,90 @@
+/* ==========================================================================
+   GIRAPH DESIGN SYSTEM TOKENS
+   Art Direction: Clinical Lab Report / Terminal-Editorial
+   ========================================================================== */
+
+:root {
+  /* --- Palette (Restrained, High-Contrast Clinical Surface) --- */
+  --bg-void: #07080a;
+  --bg-surface: #0d0f14;
+  --bg-panel: #13161e;
+  --bg-panel-hover: #171b26;
+  --bg-subtle: rgba(255, 255, 255, 0.03);
+  
+  /* Hairline Rules */
+  --line-hairline: rgba(255, 255, 255, 0.08);
+  --line-subtle: rgba(255, 255, 255, 0.14);
+  --line-focus: #3b82f6;
+  --line-active: rgba(255, 255, 255, 0.35);
+
+  /* Typography Colors */
+  --text-pure: #f8fafc;
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --text-dim: #475569;
+
+  /* Accent & Telemetry */
+  --accent-primary: #3b82f6;
+  --accent-dim: rgba(59, 130, 246, 0.15);
+
+  /* Verdict Statuses (Color-Blind Accessible + Explicit Monospace Labels) */
+  --verdict-blocked: #10b981;
+  --verdict-blocked-bg: rgba(16, 185, 129, 0.12);
+  --verdict-blocked-border: rgba(16, 185, 129, 0.4);
+
+  --verdict-leaked: #ef4444;
+  --verdict-leaked-bg: rgba(239, 68, 68, 0.12);
+  --verdict-leaked-border: rgba(239, 68, 68, 0.45);
+
+  --verdict-error: #f59e0b;
+  --verdict-error-bg: rgba(245, 158, 11, 0.12);
+  --verdict-error-border: rgba(245, 158, 11, 0.4);
+
+  --verdict-idle: #64748b;
+  --verdict-idle-bg: rgba(100, 116, 139, 0.1);
+  --verdict-idle-border: rgba(100, 116, 139, 0.3);
+
+  --verdict-running: #38bdf8;
+  --verdict-running-bg: rgba(56, 189, 248, 0.15);
+  --verdict-running-border: #38bdf8;
+
+  /* --- Typography Families --- */
+  --font-display: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', Consolas, Menlo, monospace;
+
+  /* Spacing Scale */
+  --space-2: 2px;
+  --space-4: 4px;
+  --space-8: 8px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-20: 20px;
+  --space-24: 24px;
+  --space-32: 32px;
+  --space-40: 40px;
+  --space-48: 48px;
+
+  /* Pinned Panel Dimensions (DNA Capital Editorial Proportions) */
+  --panel-width: 760px;
+  --top-bar-height: 64px;
+  --bottom-rail-height: 56px;
+
+  /* Corner Radii (Architectural Refinement - Eliminates Boxiness) */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-pill: 9999px;
+
+  /* Atmospheric Shadows & Depth */
+  --shadow-subtle: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-panel: 0 24px 60px -15px rgba(0, 0, 0, 0.7);
+  --shadow-panel-focus: 0 32px 80px -20px rgba(0, 0, 0, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  --shadow-overlay: 0 40px 100px rgba(0, 0, 0, 0.95);
+
+  /* Transitions */
+  --transition-fast: 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  --transition-smooth: 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}

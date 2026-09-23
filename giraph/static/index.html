@@ -1,184 +1,231 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>GIRAPH observability</title>
-<style>
-  :root {
-    --bg: #0f1216; --panel: #171b21; --line: #2a3039; --text: #e6e9ee; --muted: #8b95a5;
-    --allow: #3fb950; --block: #f85149; --escalate: #d29922; --rewrite: #58a6ff;
-    --trusted: #3fb950; --agent: #8b95a5; --untrusted: #f85149; --unknown: #d29922;
-    --in: #1f3b2a; --out: #3a1f22; --denied: #4a1d1d; --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
-  }
-  * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, -apple-system, Segoe UI, sans-serif; }
-  header { display: flex; align-items: center; gap: 16px; padding: 12px 20px; border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 2; }
-  header h1 { font-size: 16px; margin: 0; letter-spacing: .04em; }
-  header h1 span { color: var(--muted); font-weight: 400; margin-left: 8px; }
-  header .spacer { flex: 1; }
-  select, button, input[type=file] { background: #0f1216; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; font: inherit; }
-  main { display: grid; grid-template-columns: 300px 1fr; min-height: calc(100vh - 53px); }
-  aside { border-right: 1px solid var(--line); padding: 12px; overflow: auto; }
-  aside .run { padding: 8px 10px; border-radius: 6px; cursor: pointer; font-family: var(--mono); font-size: 12px; word-break: break-all; }
-  aside .run:hover, aside .run.active { background: var(--panel); }
-  section { padding: 16px 20px; overflow: auto; }
-  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 18px 0 8px; }
-  .goal { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; white-space: pre-wrap; }
-  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-  .chip { padding: 3px 9px; border-radius: 999px; font-family: var(--mono); font-size: 12px; border: 1px solid var(--line); }
-  .chip.in { background: var(--in); border-color: #2c5a3c; }
-  .chip.out { background: #1a1e25; color: var(--muted); }
-  .chip.denied { background: var(--denied); border-color: #7a2a2a; text-decoration: line-through; }
-  .nodes { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 6px; }
-  .node { min-width: 190px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font-size: 12px; position: relative; }
-  .node.hit { border-color: var(--allow); box-shadow: 0 0 0 1px var(--allow) inset; }
-  .node.violated { border-color: var(--block); box-shadow: 0 0 0 1px var(--block) inset; }
-  .node .tool { font-family: var(--mono); font-weight: 600; font-size: 13px; }
-  .node .eff { color: var(--muted); }
-  .node .by { font-size: 10px; color: var(--muted); letter-spacing: .06em; margin-left: 6px; }
-  .node .by.DATA { color: var(--escalate); }
-  .node.escalated { border-color: var(--escalate); box-shadow: 0 0 0 1px var(--escalate) inset; }
-  .node dl { margin: 6px 0 0; display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; }
-  .node dt { color: var(--muted); } .node dd { margin: 0; font-family: var(--mono); word-break: break-all; }
-  .node .count { position: absolute; bottom: 8px; right: 10px; font-family: var(--mono); color: var(--muted); }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
-  td, th { word-break: break-word; overflow-wrap: anywhere; }
-  th { text-align: left; color: var(--muted); font-weight: 500; padding: 6px 8px; border-bottom: 1px solid var(--line); font-size: 12px; }
-  td { padding: 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
-  tr.row { cursor: pointer; } tr.row:hover td { background: #141820; }
-  tr.detail td { background: #0c0f13; padding: 10px 14px; }
-  pre { margin: 0; font-family: var(--mono); font-size: 12px; white-space: pre-wrap; word-break: break-word; }
-  .mono { font-family: var(--mono); font-size: 12px; }
-  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: .04em; color: #0b0d10; }
-  .badge.allow { background: var(--allow); } .badge.block { background: var(--block); } .badge.escalate { background: var(--escalate); } .badge.rewrite { background: var(--rewrite); }
-  .auth { display: inline-flex; align-items: center; gap: 6px; } .auth i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-  .auth.trusted i { background: var(--trusted); } .auth.agent i { background: var(--agent); } .auth.untrusted i { background: var(--untrusted); } .auth.unknown i { background: var(--unknown); }
-  .codes span { display: inline-block; margin: 1px 4px 1px 0; padding: 1px 6px; border: 1px solid var(--line); border-radius: 4px; font-family: var(--mono); font-size: 11px; }
-  .codes span.viol { border-color: var(--block); color: #ffb3ad; }
-  .codes span.ok { border-color: #2c5a3c; color: #9fe2ac; }
-  .summary { display: flex; gap: 12px; flex-wrap: wrap; }
-  .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px; min-width: 110px; }
-  .stat b { display: block; font-size: 20px; } .stat small { color: var(--muted); }
-  .empty { color: var(--muted); padding: 40px; text-align: center; }
-  .principle { color: var(--muted); font-style: italic; }
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GIRAPH · Security Scenario Runner & Defense Harness</title>
+  
+  <!-- High-Contrast Clinical Editorial Typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Modular Design System -->
+  <link rel="stylesheet" href="/static/css/tokens.css?v=2">
+  <link rel="stylesheet" href="/static/css/layout.css?v=2">
+  <link rel="stylesheet" href="/static/css/components.css?v=2">
 </head>
 <body>
-<header>
-  <h1>GIRAPH <span>plan-graph conformance · observability</span></h1>
-  <div class="spacer"></div>
-  <label class="mono">turn <select id="turn"></select></label>
-  <label class="mono">trace file <input type="file" id="file" accept=".jsonl"></label>
-  <button id="refresh">refresh</button>
-</header>
-<main>
-  <aside id="runs"></aside>
-  <section id="view"><div class="empty">Select a run, or load a trace file.</div></section>
-</main>
-<script>
-const $ = (s, el = document) => el.querySelector(s);
-const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-let state = { runs: [], run: null, trace: [], graph: null, turn: 0, offline: false };
 
-async function loadRuns() {
-  try { state.runs = await (await fetch('/runs')).json(); } catch { state.runs = []; }
-  renderRuns();
-}
-function renderRuns() {
-  $('#runs').innerHTML = state.runs.length ? state.runs.map(r => `<div class="run ${r === state.run ? 'active' : ''}" data-run="${esc(r)}">${esc(r)}</div>`).join('')
-    : '<div class="empty">no runs yet</div>';
-  $('#runs').querySelectorAll('.run').forEach(el => el.onclick = () => openRun(el.dataset.run));
-}
-async function openRun(run) {
-  state.run = run; state.offline = false;
-  state.trace = await (await fetch('/trace/' + encodeURIComponent(run))).json();
-  await selectTurn(0); renderRuns();
-}
-async function selectTurn(turn) {
-  state.turn = turn;
-  if (!state.offline) {
-    try { state.graph = await (await fetch(`/graph/${encodeURIComponent(state.run)}?turn=${turn}`)).json(); } catch { state.graph = null; }
-  }
-  render();
-}
-$('#file').onchange = async e => {
-  const text = await e.target.files[0].text();
-  state.trace = text.split('\n').filter(Boolean).map(l => JSON.parse(l));
-  state.run = state.trace[0]?.run_id ?? 'file'; state.offline = true; state.graph = null; state.turn = 0;
-  render();
-};
-$('#refresh').onclick = () => state.offline ? render() : (state.run ? openRun(state.run) : loadRuns());
-$('#turn').onchange = e => selectTurn(Number(e.target.value));
+  <!-- ========================================================================
+       1. FIXED TOP HARNESS BAR
+       ======================================================================== -->
+  <header class="top-harness">
+    <div class="harness-left">
+      <div class="brand-badge">
+        <span class="brand-dot"></span>
+        GIRAPH
+      </div>
+      <div class="brand-sub">DEFENSE TEST HARNESS</div>
 
-const authClass = a => a === 'unknown' ? 'unknown' : (a === 'agent' ? 'agent' : (/untrusted|adversary/.test(a) ? 'untrusted' : 'trusted'));
+      <nav class="filter-tabs" aria-label="Scenario Filter">
+        <button class="tab-btn active" data-filter="all">ALL [28]</button>
+        <button class="tab-btn" data-filter="attacks">ATTACKS [14]</button>
+        <button class="tab-btn" data-filter="benign">BENIGN [14]</button>
+      </nav>
+    </div>
 
-function render() {
-  const rows = state.trace.filter(e => e.turn === state.turn);
-  const turns = [...new Set(state.trace.map(e => e.turn))].sort();
-  $('#turn').innerHTML = turns.map(t => `<option value="${t}" ${t === state.turn ? 'selected' : ''}>${t}</option>`).join('');
-  if (!rows.length) { $('#view').innerHTML = '<div class="empty">no decisions for this turn</div>'; return; }
-  const g = state.graph;
-  const counts = { allow: 0, block: 0, escalate: 0, rewrite: 0 };
-  rows.forEach(e => counts[e.decision]++);
-  const hits = {}; const worst = {};
-  const rank = { allow: 0, rewrite: 1, escalate: 2, block: 3 };
-  rows.forEach(e => { if (e.node) { hits[e.node] = (hits[e.node] || 0) + 1; if ((rank[e.decision] || 0) > (rank[worst[e.node]] || 0)) worst[e.node] = e.decision; } });
-  const nodeClass = id => !hits[id] ? '' : (worst[id] === 'block' ? 'violated' : (worst[id] === 'escalate' ? 'escalated' : 'hit'));
-  const first = rows[0];
-  const envelope = g ? g.envelope : { effects: first.graph.envelope, denied_tools: first.graph.denied };
-  const allEffects = ['read','prepare','record','commit','outward_send','read_credential','disable_control','memory_write','respond'];
+    <div class="harness-center">
+      <button id="defense-toggle" class="defense-switch" title="Toggle Active Conformance Defense Layer">
+        <span class="switch-dot"></span>
+        <span id="defense-status-label">DEFENSE: GIRAPH (ON)</span>
+      </button>
+    </div>
 
-  let html = `<div class="summary">
-    <div class="stat"><b>${rows.length}</b><small>decisions</small></div>
-    <div class="stat"><b style="color:var(--allow)">${counts.allow}</b><small>allow</small></div>
-    <div class="stat"><b style="color:var(--rewrite)">${counts.rewrite}</b><small>rewrite</small></div>
-    <div class="stat"><b style="color:var(--escalate)">${counts.escalate}</b><small>escalate</small></div>
-    <div class="stat"><b style="color:var(--block)">${counts.block}</b><small>block</small></div>
-    <div class="stat"><b>${first.graph.planner}</b><small>planner · graph ${first.graph.digest}</small></div>
-  </div>`;
+    <div class="harness-right">
+      <div id="harness-telemetry" class="run-telemetry">
+        <div class="telemetry-item">TOTAL <strong id="telemetry-total">28</strong></div>
+        <div class="telemetry-item blocked">BLOCKED <strong id="telemetry-blocked">0</strong></div>
+        <div class="telemetry-item leaked">LEAKED <strong id="telemetry-leaked">0</strong></div>
+      </div>
 
-  html += `<h2>Envelope <span class="principle">— untrusted data may select; it may never author</span></h2><div class="chips">` +
-    allEffects.map(e => `<span class="chip ${envelope.effects.includes(e) ? 'in' : 'out'}">${e}</span>`).join('') +
-    (envelope.denied_tools || []).map(t => `<span class="chip denied">${esc(t)}</span>`).join('') + `</div>`;
-  if (g) {
-    html += `<div class="chips" style="margin-top:8px">` +
-      (g.envelope.destinations || []).map(d => `<span class="chip in">→ ${d}</span>`).join('') +
-      (g.envelope.external_targets || []).map(d => `<span class="chip in">✉ ${esc(d)}</span>`).join('') + `</div>`;
-    html += `<h2>Plan graph · ${g.nodes.length} nodes</h2><div class="nodes">` + g.nodes.map(n => `
-      <div class="node ${nodeClass(n.id)}">
-        <div class="tool">${esc(n.tool ?? n.effect)}</div>
-        <div class="eff">${n.effect}${n.requested ? '' : ' · unrequested'}<span class="by ${n.chosen_by}">${n.chosen_by}</span></div>
-        <dl>${Object.entries(n.bindings).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v.join(' | '))}</dd>`).join('')}
-            ${n.data_args.length ? `<dt>from data</dt><dd>${esc(n.data_args.join(', '))}</dd>` : ''}
-            ${n.requires.length ? `<dt>after</dt><dd>${esc(n.requires.join(', '))}</dd>` : ''}</dl>
-        <div class="codes" style="margin-top:6px">${n.obligations.map(o => `<span>${o}</span>`).join('')}</div>
-        ${hits[n.id] ? `<span class="count">×${hits[n.id]}</span>` : ''}
-      </div>`).join('') + `</div>`;
-    if (g.notes.length) html += `<div class="mono" style="color:var(--muted);margin-top:6px">${g.notes.map(esc).join('<br>')}</div>`;
-  }
+      <button id="btn-master-run" class="btn-action-master">
+        RUN ALL [28]
+      </button>
+    </div>
 
-  html += `<h2>Decisions</h2><table><colgroup><col style="width:36px"><col style="width:22%"><col style="width:6%"><col style="width:8%"><col style="width:11%"><col style="width:11%"><col style="width:14%"><col style="width:8%"><col></colgroup><thead><tr><th>#</th><th>action</th><th>node</th><th>effect</th><th>authority</th><th>divergence</th><th>obligations</th><th>decision</th><th>reason</th></tr></thead><tbody>`;
-  rows.forEach((e, i) => {
-    const a = e.action; const args = a.arguments && Object.keys(a.arguments).length ? JSON.stringify(a.arguments) : (a.content ? JSON.stringify(a.content) : '');
-    html += `<tr class="row" data-i="${i}">
-      <td class="mono">${e.step}</td>
-      <td><div class="mono"><b>${esc(a.tool ?? a.type)}</b>${a.type === 'request_confirmation' ? ' <small>(asks: ' + esc(a.confirmation_for) + ')</small>' : ''}</div><div class="mono" style="color:var(--muted);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">${esc(args)}</div></td>
-      <td class="mono">${esc(e.node ?? '—')}</td>
-      <td class="mono">${esc(e.effect ?? '—')}</td>
-      <td><span class="auth ${authClass(e.authority.level)}"><i></i>${esc(e.authority.level)}</span></td>
-      <td class="mono">${esc(e.divergence)}</td>
-      <td class="codes">${e.obligations.violated.map(o => `<span class="viol">${o}</span>`).join('')}${e.obligations.satisfied.map(o => `<span class="ok">${o}</span>`).join('')}</td>
-      <td><span class="badge ${e.decision}">${e.decision.toUpperCase()}</span>${e.rewritten_to ? `<div class="mono" style="color:var(--muted)">→ ${esc(e.rewritten_to)}</div>` : ''}</td>
-      <td><div class="codes">${e.reason_codes.map(c => `<span>${c}</span>`).join('')}</div><div style="color:var(--muted);margin-top:3px">${esc(e.explanation)}</div></td>
-    </tr>
-    <tr class="detail" data-i="${i}" hidden><td colspan="9"><pre>${esc(JSON.stringify({ authority: e.authority, destination: e.destination, risk: e.risk, confidence: e.confidence, latency_ms: e.latency_ms, action: e.action }, null, 2))}</pre></td></tr>`;
-  });
-  html += `</tbody></table>`;
-  $('#view').innerHTML = html;
-  $('#view').querySelectorAll('tr.row').forEach(tr => tr.onclick = () => { const d = $(`tr.detail[data-i="${tr.dataset.i}"]`); d.hidden = !d.hidden; });
-}
-loadRuns();
-</script>
+    <!-- Active Batch Progress Fill -->
+    <div class="harness-progress-bar">
+      <div id="harness-progress-fill" class="harness-progress-fill"></div>
+    </div>
+  </header>
+
+  <!-- ========================================================================
+       2. VIEWPORT PINNED STAGE (HORIZONTAL SCENARIO RUNNER)
+       ======================================================================== -->
+  <main id="stage-container" class="stage-container">
+    <div id="horizontal-track" class="horizontal-track">
+      <!-- Scenario Panels rendered dynamically by app.js -->
+    </div>
+  </main>
+
+  <!-- ========================================================================
+       3. BOTTOM MINIMAL STATUS RAIL
+       ======================================================================== -->
+  <footer class="status-rail">
+    <div class="rail-left">
+      <div id="specimen-counter" class="specimen-counter">SITUATION <b>01</b> <span>/ 28</span></div>
+      <div style="width: 140px; height: 2px; background: rgba(255,255,255,0.06); position: relative; overflow: hidden; border-radius: 2px;">
+        <div id="harness-progress" style="width: 0%; height: 100%; background: var(--accent-primary); transition: width 0.1s ease-out;"></div>
+      </div>
+    </div>
+
+    <div class="rail-center">
+      <span>USE WHEEL, DRAG, OR ARROW KEYS (← →) TO BROWSE SITUATIONS · SPACE TO RUN</span>
+    </div>
+
+    <div class="rail-right">
+      <button id="rail-prev" class="rail-nav-btn" title="Previous Situation (&larr;)" aria-label="Previous Situation">&larr;</button>
+      <button id="rail-next" class="rail-nav-btn" title="Next Situation (&rarr;)" aria-label="Next Situation">&rarr;</button>
+    </div>
+  </footer>
+
+  <!-- ========================================================================
+       4. FULLSCREEN EXPLICATIVE LOGS WORKSTATION
+       ======================================================================== -->
+  <div id="fullscreen-inspector" class="fullscreen-inspector-overlay" role="dialog" aria-modal="true" aria-label="Situation Explicative Logs">
+    <!-- Top Command Bar: Title is the Situation Name -->
+    <header class="inspector-command-bar">
+      <div class="command-bar-left">
+        <span id="insp-num" class="specimen-pill">SITUATION 01 / 28</span>
+        <h1 id="insp-title" class="specimen-main-title">Direct request to mail a restricted token</h1>
+      </div>
+
+      <div class="command-bar-center">
+        <div class="scenario-stepper">
+          <button id="insp-btn-prev" class="stepper-btn" title="Previous Situation ([ or Alt+Left)">[&#x2190; PREV]</button>
+          <span class="stepper-divider">|</span>
+          <button id="insp-btn-next" class="stepper-btn" title="Next Situation (] or Alt+Right)">[NEXT &#x2192;]</button>
+        </div>
+      </div>
+
+      <div class="command-bar-right">
+        <span id="insp-domain" class="tag-domain">ENTERPRISE</span>
+        <span id="insp-type-badge" class="attack-spec-tag adversary">ADVERSARIAL ATTACK</span>
+        <button id="insp-btn-execute" class="btn-command primary">[RE-TEST]</button>
+        <div id="insp-status-stamp" class="state-stamp passed">[BLOCKED]</div>
+        <button id="insp-btn-close" class="btn-command" title="Exit Fullscreen (ESC)">[CLOSE ESC]</button>
+      </div>
+    </header>
+
+    <!-- Explicative Overview Banner -->
+    <section class="inspector-kpi-strip">
+      <div class="kpi-cell" style="flex: 2;">
+        <div class="kpi-label">DEFENSE VERDICT &amp; OUTCOME</div>
+        <div id="insp-kpi-verdict" class="kpi-value text-blocked">DEFENSE HELD: MALICIOUS TOOL CALL INTERCEPTED &amp; BLOCKED</div>
+      </div>
+      <div class="kpi-cell">
+        <div class="kpi-label">ACTIONS INTERCEPTED</div>
+        <div id="insp-kpi-steps" class="kpi-value">5 ACTIONS EVALUATED</div>
+      </div>
+      <div class="kpi-cell">
+        <div class="kpi-label">ACTIVE DEFENSE ENGINE</div>
+        <div id="insp-kpi-defense" class="kpi-value">GIRAPH CONFORMANCE (ON)</div>
+      </div>
+    </section>
+
+    <!-- Two-Pane Fullscreen Workstation Body -->
+    <main class="inspector-workstation-body">
+      <!-- Left Pane: Situation Context Dossier (~400px) -->
+      <aside class="workstation-dossier-pane">
+        <div class="dossier-section">
+          <div class="dossier-section-title">SITUATION REQUEST (USER PROMPT)</div>
+          <div id="insp-prompt-text" class="dossier-prompt-box">
+            <!-- Real prompt injected here -->
+          </div>
+        </div>
+
+        <div class="dossier-section">
+          <div class="dossier-section-title">SECURITY THREAT ANALYSIS</div>
+          <div id="insp-attack-objective" class="dossier-subnote" style="color: #f1f5f9; font-size: 11.5px; line-height: 1.55;">
+            <!-- Real objective injected here -->
+          </div>
+        </div>
+
+        <div class="dossier-section">
+          <div class="dossier-section-title">AVAILABLE ENVIRONMENT TOOLS</div>
+          <div id="insp-tools-list" class="dossier-tools-list">
+            <!-- Tool tokens injected here -->
+          </div>
+        </div>
+
+        <div class="dossier-section">
+          <div class="dossier-section-title">SECURITY VERIFICATION CHECKS</div>
+          <div id="insp-graders-list" class="dossier-graders-list">
+            <!-- Real grader items injected here -->
+          </div>
+        </div>
+      </aside>
+
+      <!-- Right Pane: Explicative Decision & Interception Logs (flex: 1) -->
+      <section class="workstation-telemetry-pane">
+        <div class="telemetry-tabs-bar" style="justify-content: space-between; align-items: center;">
+          <div style="font-family: var(--font-mono); font-size: 11.5px; font-weight: 700; color: var(--text-pure); letter-spacing: 0.06em;">
+            EXPLICATIVE INTERCEPTION &amp; DECISION LOGS
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="telemetry-tab active" data-tab="audit">EXPLICATIVE LOGS</button>
+            <button class="telemetry-tab" data-tab="json">RAW JSON TRACE</button>
+          </div>
+        </div>
+
+        <div id="insp-telemetry-viewport" class="telemetry-viewport">
+          <!-- Explicative logs table injected here -->
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- ========================================================================
+       5. COMPACT SUMMARY REPORT MODAL
+       ======================================================================== -->
+  <div id="summary-backdrop" class="summary-modal-backdrop">
+    <div class="summary-card">
+      <div class="summary-header">
+        <div>
+          <h3 class="summary-title">SECURITY EVALUATION SUMMARY</h3>
+          <div id="sum-status" style="font-family: var(--font-mono); font-size: 11px; color: var(--verdict-blocked); margin-top: 4px;">
+            [FULL BATCH COMPLETED]
+          </div>
+        </div>
+        <button id="summary-close-btn" class="btn-command">[DISMISS]</button>
+      </div>
+
+      <div class="summary-grid">
+        <div class="summary-metric">
+          <div class="label">TOTAL EVALUATED</div>
+          <div id="sum-total" class="value">0</div>
+        </div>
+        <div class="summary-metric">
+          <div class="label">ATTACKS BLOCKED</div>
+          <div id="sum-blocked" class="value" style="color: var(--verdict-blocked);">0</div>
+        </div>
+        <div class="summary-metric">
+          <div class="label">LEAKED / BREACHED</div>
+          <div id="sum-leaked" class="value" style="color: var(--verdict-leaked);">0</div>
+        </div>
+        <div class="summary-metric">
+          <div class="label">TOTAL RUNTIME</div>
+          <div id="sum-duration" class="value">0.0s</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Vendor Animation Engine -->
+  <script src="/static/vendor/gsap.min.js"></script>
+
+  <!-- Modular Application ES Module -->
+  <script type="module" src="/static/js/app.js"></script>
 </body>
 </html>

@@ -7,7 +7,10 @@ then checks that every action stays inside what was verified.
 
 > **Untrusted data may select. It may never author.**
 
-Design: [ARCHITECTURE.md](ARCHITECTURE.md). Lineage: CaMeL (Debenedetti et al., 2025).
+- **Technical Report**: [REPORT.md](REPORT.md) *(Full SENTINEL Research Report & Failure Analysis)*
+- **Architecture**: [ARCHITECTURE.md](ARCHITECTURE.md) *(Formal Specification & Lineage)*
+- **Demo & Video Walkthrough**: [DEMO_WALKTHROUGH.md](DEMO_WALKTHROUGH.md) *(Beat-by-Beat Video Script & Live Pitch Guide)*
+- **Q&A Defense Guide**: [DEFENSE_QA_GUIDE.md](DEFENSE_QA_GUIDE.md) *(Jury Q&A Playbook for Depth Under Questioning)*
 
 ## Results (SENTINEL simulator, mock reference agent)
 

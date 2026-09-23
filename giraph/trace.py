@@ -64,8 +64,25 @@ class TraceWriter:
 
     def read(self, run_id: str) -> list[dict[str, Any]]:
         with self._lock:
-            return list(self._memory.get(run_id, []))
+            if run_id in self._memory and self._memory[run_id]:
+                return list(self._memory[run_id])
+            target = self.directory / f"{run_id}.jsonl"
+            if target.exists():
+                try:
+                    entries = [json.loads(line) for line in target.read_text(encoding="utf-8").splitlines() if line.strip()]
+                    self._memory[run_id] = entries
+                    return list(entries)
+                except Exception:
+                    pass
+            return []
 
     def runs(self) -> list[str]:
+        disk_runs: set[str] = set()
+        if self.directory.exists():
+            try:
+                for p in self.directory.glob("*.jsonl"):
+                    disk_runs.add(p.stem)
+            except OSError:
+                pass
         with self._lock:
-            return sorted(self._memory)
+            return sorted(set(self._memory.keys()) | disk_runs)
