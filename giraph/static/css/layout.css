@@ -1,0 +1,770 @@
+/* ==========================================================================
+   GIRAPH LAYOUT & PINNED HORIZONTAL STAGE
+   DNA Capital Architecture: Pinned Viewport + Non-Boxy Horizontal Scrub
+   ========================================================================== */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  background-color: var(--bg-void);
+  color: var(--text-primary);
+  font-family: var(--font-display);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Base Scroll Lock when Fullscreen Inspector is Open */
+body.inspector-open {
+  overflow: hidden;
+}
+
+/* ---- 1. TOP FIXED HARNESS BAR ---- */
+.top-harness {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--top-bar-height);
+  background: rgba(10, 12, 17, 0.88);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--line-hairline);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-32);
+  z-index: 100;
+}
+
+.harness-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-24);
+}
+
+.brand-badge {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: var(--text-pure);
+  text-transform: uppercase;
+}
+
+.brand-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-xs);
+  background-color: var(--accent-primary);
+}
+
+.brand-sub {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  border-left: 1px solid var(--line-hairline);
+  padding-left: var(--space-16);
+}
+
+/* Filter Controls (De-boxed pills) */
+.filter-tabs {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--line-hairline);
+  border-radius: var(--radius-sm);
+  padding: 3px;
+}
+
+.tab-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  padding: 5px 12px;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.tab-btn:hover {
+  color: var(--text-pure);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.tab-btn.active {
+  color: var(--bg-void);
+  background: var(--text-pure);
+  font-weight: 700;
+}
+
+.harness-center {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+}
+
+/* Defense & Model Configuration Toggles */
+.toggle-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-10);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.select-compact {
+  background: var(--bg-surface);
+  border: 1px solid var(--line-hairline);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 6px 12px;
+  outline: none;
+  cursor: pointer;
+  transition: border-color var(--transition-fast);
+}
+
+.select-compact:hover, .select-compact:focus {
+  border-color: var(--line-subtle);
+}
+
+/* Defense Switch (On / Off) */
+.defense-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-8);
+  background: var(--bg-surface);
+  border: 1px solid var(--verdict-blocked-border);
+  border-radius: var(--radius-sm);
+  padding: 5px 12px;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--verdict-blocked);
+  letter-spacing: 0.06em;
+  transition: all var(--transition-fast);
+}
+
+.defense-switch.off {
+  color: var(--verdict-leaked);
+  border-color: var(--verdict-leaked-border);
+}
+
+.defense-switch .switch-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-xs);
+  background-color: currentColor;
+}
+
+.harness-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-20);
+}
+
+/* Progress & Live Telemetry Meter */
+.run-telemetry {
+  display: flex;
+  align-items: center;
+  gap: var(--space-16);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.telemetry-item strong {
+  color: var(--text-pure);
+  margin-left: 2px;
+}
+
+.telemetry-item.blocked strong {
+  color: var(--verdict-blocked);
+}
+
+.telemetry-item.leaked strong {
+  color: var(--verdict-leaked);
+}
+
+.telemetry-item.errors strong {
+  color: var(--verdict-error);
+}
+
+/* Master Action Button (Run All / Stop) */
+.btn-action-master {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 8px 18px;
+  border: 1px solid var(--text-pure);
+  border-radius: var(--radius-sm);
+  background: var(--text-pure);
+  color: var(--bg-void);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  transition: all var(--transition-fast);
+}
+
+.btn-action-master:hover {
+  background: transparent;
+  color: var(--text-pure);
+}
+
+.btn-action-master.is-running {
+  background: var(--verdict-leaked);
+  border-color: var(--verdict-leaked);
+  color: #fff;
+}
+
+.btn-action-master.is-running:hover {
+  background: transparent;
+  color: var(--verdict-leaked);
+}
+
+/* Progress Line Running Across Top Edge */
+.harness-progress-bar {
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.harness-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--accent-primary);
+  transition: width 0.15s ease-out;
+}
+
+/* ---- 2. VIEWPORT PINNED STAGE (DNA CAPITAL EXPERIENCE) ---- */
+.stage-container {
+  position: absolute;
+  top: var(--top-bar-height);
+  bottom: var(--bottom-rail-height);
+  left: 0;
+  right: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+}
+
+/* Horizontal Track (Transformed in X) */
+.horizontal-track {
+  display: flex;
+  gap: 64px;
+  padding: 0 calc(50vw - (var(--panel-width) / 2));
+  will-change: transform;
+  transform: translateX(0px);
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.horizontal-track.is-scrubbing {
+  transition: none;
+}
+
+/* ---- 3. BOTTOM TELEMETRY RAIL ---- */
+.status-rail {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: var(--bottom-rail-height);
+  background: rgba(10, 12, 17, 0.88);
+  backdrop-filter: blur(20px);
+  border-top: 1px solid var(--line-hairline);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-32);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  z-index: 90;
+}
+
+.rail-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-24);
+}
+
+.specimen-counter {
+  color: var(--text-pure);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+.specimen-counter span {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.rail-center {
+  display: flex;
+  align-items: center;
+  gap: var(--space-28);
+  color: var(--text-muted);
+}
+
+.kbd-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.kbd-key {
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-xs);
+  background: rgba(255, 255, 255, 0.04);
+  padding: 1px 6px;
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+.rail-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+}
+
+.rail-nav-btn {
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--line-hairline);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  transition: all var(--transition-fast);
+}
+
+.rail-nav-btn:hover {
+  border-color: var(--line-active);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-pure);
+}
+
+/* ---- 4. FULLSCREEN REVISIONED INSPECTION WORKSTATION ---- */
+.fullscreen-inspector-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--bg-void);
+  z-index: 500;
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(0.985);
+  transition: opacity var(--transition-smooth), transform var(--transition-smooth);
+}
+
+.fullscreen-inspector-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+  transform: scale(1);
+}
+
+/* Fullscreen Top Command Bar */
+.inspector-command-bar {
+  height: 64px;
+  min-height: 64px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--line-hairline);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-32);
+}
+
+.command-bar-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-16);
+  flex: 1;
+  min-width: 0;
+  margin-right: var(--space-24);
+}
+
+.specimen-pill {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-pure);
+  white-space: nowrap;
+}
+
+.specimen-main-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-pure);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.specimen-code-tag {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--accent-primary);
+  border-left: 1px solid var(--line-hairline);
+  padding-left: var(--space-12);
+  white-space: nowrap;
+}
+
+.command-bar-center {
+  display: flex;
+  align-items: center;
+}
+
+.scenario-stepper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--line-hairline);
+  border-radius: var(--radius-sm);
+  padding: 3px 6px;
+}
+
+.stepper-btn {
+  background: transparent;
+  border: none;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  padding: 4px 10px;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.stepper-btn:hover {
+  color: var(--text-pure);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.stepper-divider {
+  color: var(--line-subtle);
+  font-size: 10px;
+}
+
+.command-bar-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+}
+
+.btn-command {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 7px 14px;
+  border: 1px solid var(--line-hairline);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-command:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--line-active);
+  color: var(--text-pure);
+}
+
+.btn-command.primary {
+  background: var(--text-pure);
+  color: var(--bg-void);
+  border-color: var(--text-pure);
+}
+
+.btn-command.primary:hover {
+  background: transparent;
+  color: var(--text-pure);
+}
+
+/* Fullscreen KPI Strip */
+.inspector-kpi-strip {
+  height: 52px;
+  min-height: 52px;
+  background: rgba(13, 16, 23, 0.7);
+  border-bottom: 1px solid var(--line-hairline);
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  padding: 0 var(--space-32);
+}
+
+.kpi-cell {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border-right: 1px solid var(--line-hairline);
+  padding: 0 var(--space-16);
+}
+
+.kpi-cell:last-child {
+  border-right: none;
+}
+
+.kpi-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+
+.kpi-value {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-pure);
+}
+
+.kpi-value.text-blocked { color: var(--verdict-blocked); }
+.kpi-value.text-leaked { color: var(--verdict-leaked); }
+.kpi-value.text-error { color: var(--verdict-error); }
+
+/* Fullscreen Workstation Body */
+.inspector-workstation-body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+/* Left Pane: Specimen Context Dossier */
+.workstation-dossier-pane {
+  width: 440px;
+  min-width: 400px;
+  max-width: 460px;
+  background: #0b0e14;
+  border-right: 1px solid var(--line-hairline);
+  overflow-y: auto;
+  padding: var(--space-32) var(--space-36);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-24);
+}
+
+.dossier-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.dossier-section-title {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.dossier-prompt-box {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  border-left: 2px solid var(--accent-primary);
+  padding: var(--space-8) 0 var(--space-8) var(--space-16);
+  word-break: break-word;
+}
+
+.dossier-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-8);
+}
+
+.dossier-meta-item {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--line-hairline);
+  border-radius: var(--radius-sm);
+  padding: var(--space-8) var(--space-12);
+  display: flex;
+  justify-content: space-between;
+}
+
+.meta-label { color: var(--text-muted); font-size: 9.5px; }
+.meta-val { font-weight: 700; color: var(--text-pure); }
+.meta-val.text-adversary { color: #fda4af; }
+
+.dossier-subnote {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin-top: 4px;
+}
+
+.dossier-graders-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dossier-grader-row {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.4;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--line-hairline);
+  border-radius: var(--radius-sm);
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.dossier-tools-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Right Pane: Deep Telemetry Workstation */
+.workstation-telemetry-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-void);
+  min-width: 0;
+}
+
+.telemetry-tabs-bar {
+  height: 48px;
+  min-height: 48px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--line-hairline);
+  display: flex;
+  padding: 0 var(--space-28);
+}
+
+.telemetry-tab {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 0 var(--space-16);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.telemetry-tab:hover {
+  color: var(--text-primary);
+}
+
+.telemetry-tab.active {
+  color: var(--text-pure);
+  border-bottom-color: var(--accent-primary);
+}
+
+.telemetry-viewport {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-28) var(--space-32);
+}
+
+/* ---- 5. RESPONSIVENESS & ACCESSIBILITY ---- */
+@media (max-width: 1200px) {
+  :root {
+    --panel-width: 580px;
+  }
+  .harness-center {
+    display: none;
+  }
+  .workstation-dossier-pane {
+    width: 340px;
+    min-width: 320px;
+  }
+}
+
+@media (max-width: 768px) {
+  :root {
+    --panel-width: 90vw;
+  }
+  .top-harness {
+    padding: 0 var(--space-12);
+  }
+  .rail-center {
+    display: none;
+  }
+  .inspector-workstation-body {
+    flex-direction: column;
+  }
+  .workstation-dossier-pane {
+    width: 100%;
+    max-width: none;
+    height: 300px;
+  }
+}
+
+/* Reduced Motion Compliance */
+@media (prefers-reduced-motion: reduce) {
+  html, body {
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+  .stage-container {
+    position: relative;
+    top: auto;
+    bottom: auto;
+    margin-top: var(--top-bar-height);
+    margin-bottom: var(--bottom-rail-height);
+    overflow: visible;
+  }
+  .horizontal-track {
+    flex-direction: column;
+    padding: var(--space-32) var(--space-16);
+    transform: none !important;
+  }
+  .scenario-panel {
+    width: 100% !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}

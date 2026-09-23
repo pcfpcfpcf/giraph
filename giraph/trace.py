@@ -72,7 +72,17 @@ class TraceWriter:
 
     def read(self, run_id: str) -> list[dict[str, Any]]:
         with self._lock:
-            return list(self._memory.get(run_id, []))
+            if run_id in self._memory and self._memory[run_id]:
+                return list(self._memory[run_id])
+            target = self.directory / f"{run_id}.jsonl"
+            if target.exists():
+                try:
+                    entries = [json.loads(line) for line in target.read_text(encoding="utf-8").splitlines() if line.strip()]
+                    self._memory[run_id] = entries
+                    return list(entries)
+                except Exception:
+                    pass
+            return []
 
     def summary(self) -> dict[str, Any]:
         """Aggregate view over every run seen by this process: decision mix, latency, reason codes, one row per run."""
@@ -108,6 +118,15 @@ class TraceWriter:
                 "rows": rows}
 
     def runs(self) -> list[dict[str, str]]:
-        """One row per run: its id and the user goal it was planned for (from the first record)."""
+        """One row per run, in memory or on disk: its id and the user goal it was planned for (from the first record)."""
         with self._lock:
-            return [{"run_id": run_id, "goal": entries[0].get("goal", "")} for run_id, entries in sorted(self._memory.items())]
+            rows = {run_id: entries[0].get("goal", "") for run_id, entries in self._memory.items() if entries}
+        if self.directory.exists():
+            for path in self.directory.glob("*.jsonl"):
+                if path.stem not in rows:
+                    try:
+                        with path.open(encoding="utf-8") as fh:
+                            rows[path.stem] = json.loads(fh.readline() or "{}").get("goal", "")
+                    except (OSError, ValueError):
+                        continue
+        return [{"run_id": run_id, "goal": goal} for run_id, goal in sorted(rows.items())]
