@@ -28,6 +28,9 @@ from giraph.trace import TraceWriter
 app = FastAPI(title="GIRAPH", docs_url=None, redoc_url=None, openapi_url=None)
 STATIC = Path(__file__).parent / "static"
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
+app.mount("/css", StaticFiles(directory=STATIC / "css"), name="css")
+app.mount("/js", StaticFiles(directory=STATIC / "js"), name="js")
+app.mount("/vendor", StaticFiles(directory=STATIC / "vendor"), name="vendor")
 giraph = Giraph()
 
 # In-memory store for scenario metadata and latest test run results
@@ -217,6 +220,12 @@ def _execute_scenario(scenario_id: str, defense_name: str, model_name: str, plan
 def index() -> FileResponse:
     """The observability & evaluation dashboard."""
     return FileResponse(STATIC / "index.html")
+
+
+@app.get("/architecture")
+def architecture() -> FileResponse:
+    """The cinematic interactive architecture visualizer."""
+    return FileResponse(STATIC / "architecture.html")
 
 
 @app.get("/healthz")

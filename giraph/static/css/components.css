@@ -605,3 +605,45 @@
   color: var(--text-pure);
   margin-top: 4px;
 }
+
+/* --- Architecture Tour Nav Button --- */
+.btn-arch-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.22), rgba(139, 92, 246, 0.22));
+  border: 1px solid rgba(139, 92, 246, 0.45);
+  border-radius: var(--radius-pill);
+  color: #f8fafc;
+  text-decoration: none;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 0 16px rgba(139, 92, 246, 0.2);
+  margin-left: 8px;
+}
+
+.btn-arch-nav:hover {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.4), rgba(139, 92, 246, 0.4));
+  border-color: #a78bfa;
+  box-shadow: 0 0 24px rgba(139, 92, 246, 0.45);
+  transform: translateY(-1px);
+}
+
+.arch-pulse-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #38bdf8;
+  box-shadow: 0 0 8px #38bdf8;
+  animation: archPulse 1.8s infinite ease-in-out;
+}
+
+@keyframes archPulse {
+  0%, 100% { transform: scale(1); opacity: 0.8; box-shadow: 0 0 6px #38bdf8; }
+  50% { transform: scale(1.4); opacity: 1; box-shadow: 0 0 14px #a78bfa; }
+}
+
