@@ -32,7 +32,7 @@ This guide arms the presenter with deep, mathematically grounded, and implementa
 > *"CaMeL introduced the foundational insight that separating trusted control flow from untrusted data prevents prompt injection by construction. However, CaMeL had two major practical limitations:
 > 
 > 1. **Data-Dependent Branching**: In CaMeL, if control flow depends on environment data (e.g. 'if invoice is overdue, call notify; else archive'), the interpreter struggles because branching on untrusted data re-opens the control-flow injection channel. GIRAPH solves this with **Pre-authorized Branch Sets** on `DATA` nodes. The planner enumerates all valid branches over *types* in advance. The adversary may pick which branch executes, but **every branch is verified safe beforehand**.
-> 2. **Trajectory Conformance over Interpreted Code**: Rather than generating Python code that must execute in a custom sandboxed interpreter, GIRAPH compiles the task into a **Plan Graph**. This makes monitoring orders of magnitude faster (5 ms per decision) and natively supports multi-turn agent loops where the agent takes autonomous actions across extended horizons."*
+> 2. **Trajectory Conformance over Interpreted Code**: Rather than generating Python code that must execute in a custom sandboxed interpreter, GIRAPH compiles the task into a **Plan Graph**. This makes monitoring orders of magnitude faster (3.6 ms median per decision) and natively supports multi-turn agent loops where the agent takes autonomous actions across extended horizons."*
 
 ---
 
@@ -85,12 +85,14 @@ This guide arms the presenter with deep, mathematically grounded, and implementa
 
 ### Question: "Your technical report claims 0% ASR on the SENTINEL benchmark. Tell us where your defense actually fails."
 **Master Answer**:
-> *"We do not claim universal invulnerability. GIRAPH has four explicit structural boundaries:
-> 
-> 1. **The Malicious Principal**: If the authenticated human user is an insider wanting to exfiltrate data, our planner encodes their malicious intent into the plan graph. GIRAPH protects against environment injection, not a malicious principal.
-> 2. **Over-Generalized Initial Envelopes**: If the user's initial task is broad—like 'review tickets and notify stakeholders'—the planner might provision an open-ended outward sending envelope. An injection in a ticket can exploit that broad scope.
-> 3. **Search Depth Limits**: If a task requires $>15$ multi-turn sequential steps, pre-enumerating all branch permutations causes combinatorial explosion. Beyond the search depth, unverified divergence forces escalation.
-> 4. **Intra-Effect Semantic Masquerading**: If an injection tricks the agent into reading `confidential_salaries.csv` using the authorized `file_read` tool instead of `public_info.txt`, both share the identical `read` effect and authority level. Boundary defenses cannot catch intra-effect semantic context without human confirmation."*
+> *"We do not claim universal invulnerability. The 0% is on the published library with the kit's scripted mock agent. REPORT.md §6 lists where GIRAPH breaks, each one checked against the code:
+>
+> 1. **Transformed secrets leak.** Redaction matches the secret verbatim. If the agent base64-encodes it, spaces it out, reverses it, or the secret is under 16 characters, it is not masked.
+> 2. **Redirected reads are allowed.** Untrusted data may select what is read, so a lookup redirected by an injection runs and the secret reaches the agent. Only the sinks are guarded.
+> 3. **Untrusted text can fill internal records.** `record` is a reversible effect inside the envelope. We do not judge whether a note or a reply is true.
+> 4. **Planner misreads.** The deterministic planner is regex over verbs and negations: "I will execute it myself later" is read as a request to execute. Confirmation is still required.
+> 5. **Trusted labels and catalogue.** A mislabelled tool, or a tool output the harness forgot to label, is a hole.
+> 6. **Evaluation validity.** Every number uses the mock agent, which copies secrets verbatim, and GIRAPH made no escalations on it, so escalation behaviour is untested."*
 
 ---
 
@@ -100,8 +102,8 @@ This guide arms the presenter with deep, mathematically grounded, and implementa
 **Master Answer**:
 > *"No. The expensive phase—plan generation—runs exactly once per task, before any external calls are made.
 > During runtime, the conformance monitor is a lightweight, deterministic finite-state transition checker:
-> - **Median Latency**: **5.04 milliseconds**.
-> - **95th Percentile (p95)**: **6.95 milliseconds**.
+> - **Median Latency**: **3.6 milliseconds** (public split, over HTTP).
+> - **95th Percentile (p95)**: **7.8 milliseconds**.
 > - **Memory Footprint**: Negligible (JSON plan graph stored in memory).
 > 
-> Compared to typical LLM token generation latency (often 500 ms to 2,000 ms), GIRAPH's 5 ms check represents less than 0.5% overhead."*
+> Compared to typical LLM token generation latency (often 500 ms to 2,000 ms), GIRAPH's ~4 ms check is well under 1% overhead."*

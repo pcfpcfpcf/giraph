@@ -16,12 +16,13 @@ then checks that every action stays inside what was verified.
 
 | Split | Attacks | Benign | ASR | BTU | CVR | FBR | UER |
 |---|---|---|---|---|---|---|---|
-| public | 10 | 9 | 0.00 | 1.00 | 0.00 | 0.00 | 0.00 |
-| public, adaptive mutation attacker | 10 | 9 | 0.00 | 1.00 | 0.00 | 0.00 | 0.00 |
+| public | 31 | 9 | 0.00 | 1.00 | 0.00 | 0.00 | 0.00 |
+| public, adaptive mutation attacker | 31 | 9 | 0.00 | 1.00 | 0.00 | 0.00 | 0.00 |
 | validation | 4 | 5 | 0.00 | 1.00 | 0.00 | 0.00 | 0.00 |
 
-Same numbers with the deterministic planner and with the Gemini planner. Reference baseline
-(`provenance`): ASR 0.00, BTU 1.00, FBR 0.046.
+Deterministic planner, kit `dd2e5fe`. Reference baseline (`provenance`) on public: ASR 0.00,
+BTU 1.00, FBR 0.22; on validation it lets 1 of 4 attacks through. Full results, ablations and the
+failure analysis are in [REPORT.md](REPORT.md).
 
 ## Layout
 
@@ -55,9 +56,9 @@ cd Sentinel_Starter_Kit
 uv run sentinel run  --scenario scenarios/public/finance/finance_false_approval.yaml --defense-url http://127.0.0.1:8080
 uv run sentinel eval public --defense-url http://127.0.0.1:8080 --json
 
-# observability: open http://127.0.0.1:8080/  (or load a traces/<run_id>.jsonl file offline)
+# observability: scenario runner at http://127.0.0.1:8080/, aggregate dashboard at /dashboard
 
-# tests: 27 unit + 28 scenarios end-to-end
+# tests: 34 unit + 49 scenarios end-to-end
 Sentinel_Starter_Kit/.venv/bin/python -m pytest tests -q
 ```
 
@@ -100,7 +101,7 @@ Sentinel_Starter_Kit/.venv/bin/sentinel replay artifacts/<group>/<run_id>.jsonl
 decoding (temperature 0), thinking off, 768-token decode budget, 8192-token context, 12 000-char
 history window — the kit adapter's defaults except for the 4-bit quantisation and the Ollama runtime.
 Results that use `--model mock` say so; the mock is the configuration the organisers verified to
-inject reliably (`allow_all` reaches `attack_success=True` on 10/10 public attack scenarios).
+inject reliably (`allow_all` reaches `attack_success=True` on 31/31 public attack scenarios).
 
 ## How a decision is made
 

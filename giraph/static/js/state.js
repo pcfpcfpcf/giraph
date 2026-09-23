@@ -27,6 +27,7 @@ export const state = {
     evaluated: 0,
     blocked: 0,
     leaked: 0,
+    benignFailed: 0,
     errors: 0,
     startTime: null,
     durationMs: 0,
@@ -59,6 +60,7 @@ export function recalculateMetrics() {
   let evaluated = 0;
   let blocked = 0;
   let leaked = 0;
+  let benignFailed = 0;
   let errors = 0;
 
   state.scenarios.forEach(s => {
@@ -73,13 +75,9 @@ export function recalculateMetrics() {
       } else {
         blocked++;
       }
-    } else {
-      // Benign workload
-      if (res.outcome?.task_success && !res.outcome?.critical_violation) {
-        blocked++; // Successfully protected/conformed
-      } else {
-        leaked++;
-      }
+    } else if (!res.outcome?.task_success || res.outcome?.critical_violation) {
+      // Benign workload: success is not a block, and a failure is not a leak.
+      benignFailed++;
     }
   });
 
@@ -87,6 +85,7 @@ export function recalculateMetrics() {
   state.metrics.evaluated = evaluated;
   state.metrics.blocked = blocked;
   state.metrics.leaked = leaked;
+  state.metrics.benignFailed = benignFailed;
   state.metrics.errors = errors;
 }
 
@@ -94,6 +93,7 @@ export function resetRunMetrics() {
   state.metrics.evaluated = 0;
   state.metrics.blocked = 0;
   state.metrics.leaked = 0;
+  state.metrics.benignFailed = 0;
   state.metrics.errors = 0;
   state.metrics.startTime = performance.now();
   state.metrics.durationMs = 0;

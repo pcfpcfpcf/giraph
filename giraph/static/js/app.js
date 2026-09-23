@@ -21,6 +21,7 @@ const railNextBtn = document.getElementById('rail-next');
 const countTotal = document.getElementById('telemetry-total');
 const countBlocked = document.getElementById('telemetry-blocked');
 const countLeaked = document.getElementById('telemetry-leaked');
+const countBenignFailed = document.getElementById('telemetry-benign-failed');
 const progressFill = document.getElementById('harness-progress-fill');
 
 // Summary Modal Elements
@@ -75,13 +76,13 @@ export function getScenarioStatus(scenario) {
     if (res.outcome.attack_success || res.outcome.critical_violation) {
       return { stamp: 'failed', text: '[LEAKED]', label: 'ATTACK SUCCEEDED' };
     } else {
-      return { stamp: 'passed', text: '[BLOCKED]', label: 'DEFENSE HELD' };
+      return { stamp: 'passed', text: '[STOPPED]', label: 'DEFENSE HELD' };
     }
   } else {
     if (res.outcome?.task_success && !res.outcome?.critical_violation) {
       return { stamp: 'passed', text: '[CONFORMED]', label: 'BENIGN COMPLETED' };
     } else {
-      return { stamp: 'failed', text: '[DEVIATED]', label: 'POLICY BREACH' };
+      return { stamp: 'failed', text: '[TASK FAILED]', label: res.outcome?.critical_violation ? 'CRITICAL VIOLATION' : 'BENIGN TASK FAILED' };
     }
   }
 }
@@ -119,7 +120,9 @@ export function renderPanels() {
       } else if (status.stamp === 'failed') {
         statusLine = scenario.attack_present
           ? `Security Breach &middot; Attack payload executed &middot; ${defVal || 'ALLOW_ALL'}`
-          : `Policy Breach &middot; Unauthorized action attempted`;
+          : (scenario.latest_result?.outcome?.critical_violation
+            ? `Critical violation &middot; ${defVal || 'ALLOW_ALL'}`
+            : `Task did not complete &middot; ${defVal || 'GIRAPH'}`);
       } else if (status.stamp === 'error') {
         statusLine = `Execution Error: ${scenario.latest_result?.outcome?.errorMessage || 'Failed'}`;
       }
@@ -257,6 +260,7 @@ function updateTelemetryCounters() {
   if (countTotal) countTotal.textContent = state.metrics.total;
   if (countBlocked) countBlocked.textContent = state.metrics.blocked;
   if (countLeaked) countLeaked.textContent = state.metrics.leaked;
+  if (countBenignFailed) countBenignFailed.textContent = state.metrics.benignFailed;
 
   const totalCount = state.scenarios.length;
   const attacksCount = state.scenarios.filter(s => s.attack_present).length;
@@ -403,12 +407,14 @@ function showSummaryModal(cancelled = false, durationMs = 0) {
   const sumTotal = document.getElementById('sum-total');
   const sumBlocked = document.getElementById('sum-blocked');
   const sumLeaked = document.getElementById('sum-leaked');
+  const sumBenignFailed = document.getElementById('sum-benign-failed');
   const sumDuration = document.getElementById('sum-duration');
   const sumStatus = document.getElementById('sum-status');
 
   if (sumTotal) sumTotal.textContent = state.metrics.total;
   if (sumBlocked) sumBlocked.textContent = state.metrics.blocked;
   if (sumLeaked) sumLeaked.textContent = state.metrics.leaked;
+  if (sumBenignFailed) sumBenignFailed.textContent = state.metrics.benignFailed;
   if (sumDuration) sumDuration.textContent = `${durationSec}s`;
   if (sumStatus) {
     sumStatus.textContent = cancelled ? '[EVALUATION CANCELLED]' : '[EVALUATION RUN COMPLETE]';

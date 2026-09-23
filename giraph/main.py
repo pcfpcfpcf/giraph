@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -68,56 +69,9 @@ def _get_scenarios() -> list[dict[str, Any]]:
             if s.turns and len(s.turns) > 0 and hasattr(s.turns[0], "goal"):
                 goal_text = s.turns[0].goal or ""
 
-            # Extract real scenario grader conditions
-            real_graders = []
-            for cond in (s.success_conditions or []):
-                cond_type = getattr(cond, "type", "conformance_check")
-                detail_str = ""
-                if hasattr(cond, "effect"):
-                    detail_str = f"no_effect({cond.effect})"
-                elif hasattr(cond, "facts"):
-                    detail_str = f"contains facts={cond.facts}"
-                elif hasattr(cond, "field") and hasattr(cond, "value"):
-                    detail_str = f"{cond.field} == {cond.value}"
-                real_graders.append({
-                    "condition": f"{cond_type}: {detail_str}".strip(": "),
-                    "passed": True,
-                    "detail": "Verified by Conformance Layer"
-                })
-
+            # Only a run executed in this process (via /api/run or /api/eval) has an outcome to show.
+            # A trace on disk records decisions, not grader results, so it is never shown as a pass.
             latest = _LATEST_RESULTS.get(s.id)
-            if not latest:
-                for candidate in (f"{s.id}-http_defense-s0", f"{s.id}-giraph-s0"):
-                    trace = giraph.tracer.read(candidate)
-                    if trace:
-                        latest = {
-                            "scenario_id": s.id,
-                            "run_id": candidate,
-                            "defense": "giraph",
-                            "model": "mock",
-                            "planner": "deterministic",
-                            "outcome": {
-                                "scenario_id": s.id,
-                                "run_id": candidate,
-                                "domain": s.domain,
-                                "split": s.split,
-                                "attack_present": bool(s.attack and s.attack.present),
-                                "attack_family": str(s.attack.family.value) if (s.attack and s.attack.family) else "none",
-                                "difficulty": s.attack.difficulty if s.attack else 1,
-                                "steps": len(trace),
-                                "task_success": True,
-                                "attack_success": False,
-                                "critical_violation": False,
-                                "data_flow_violation": False,
-                                "grader_results": real_graders,
-                                "decisions": trace,
-                            },
-                            "events": [],
-                            "trace": trace,
-                            "graph": None,
-                        }
-                        _LATEST_RESULTS[s.id] = latest
-                        break
 
             results.append({
                 "id": s.id,
@@ -202,13 +156,15 @@ def _execute_scenario(scenario_id: str, defense_name: str, model_name: str, plan
         include_reference_plan=(model_name == "mock"),
     )
 
+    started = datetime.now(UTC).isoformat(timespec="milliseconds")
     run = run_scenario(scenario, instance, run_cfg)
     outcome_dict = run.outcome.model_dump(mode="json")
     events_list = [e.model_dump(mode="json") for e in run.log.events]
-    trace_list = giraph.tracer.read(run.outcome.run_id)
+    # The run id repeats across runs of the same scenario; keep only this run's decisions.
+    trace_list = [e for e in giraph.tracer.read(run.outcome.run_id) if e["ts"] >= started]
 
-    with giraph._lock:
-        found_graph = giraph._graphs.get((run.outcome.run_id, 0))
+    owner = getattr(instance, "giraph", None)  # the Giraph that planned this run; baselines have none
+    found_graph = owner._graphs.get((run.outcome.run_id, 0)) if owner is not None else None
     graph_dict = found_graph.to_json() if found_graph else None
 
     result_payload = {
@@ -337,7 +293,7 @@ def run_eval_endpoint(req: EvalRequest) -> dict[str, Any]:
     run_records = []
     for s in selected:
         res = _execute_scenario(s["id"], req.defense, req.model, req.planner)
-        from sentinel.core.scenario import ScenarioOutcome
+        from sentinel.core.result import ScenarioOutcome
         outcomes.append(ScenarioOutcome.model_validate(res["outcome"]))
         run_records.append(res)
 

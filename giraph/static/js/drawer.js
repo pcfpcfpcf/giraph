@@ -224,7 +224,7 @@ export function renderInspector() {
   const gradersList = document.getElementById('insp-graders-list');
   if (gradersList) {
     if (graderResults.length === 0) {
-      gradersList.innerHTML = `<div style="color: var(--text-dim); font-size: 11px;">Standard security properties enforced.</div>`;
+      gradersList.innerHTML = `<div style="color: var(--text-dim); font-size: 11px;">No grader results for this run.</div>`;
     } else {
       gradersList.innerHTML = graderResults.map(g => `
         <div class="dossier-grader-row">
@@ -399,13 +399,13 @@ function getExplicativeStatus(scenario, outcome) {
     if (outcome.attack_success || outcome.critical_violation) {
       return { stampClass: 'failed', text: '[LEAKED]', headline: 'SECURITY BREACH: ADVERSARY PAYLOAD EXECUTED', textClass: 'text-leaked' };
     } else {
-      return { stampClass: 'passed', text: '[BLOCKED]', headline: 'DEFENSE HELD: MALICIOUS TOOL CALL INTERCEPTED & BLOCKED', textClass: 'text-blocked' };
+      return { stampClass: 'passed', text: '[STOPPED]', headline: 'DEFENSE HELD: THE ATTACK DID NOT SUCCEED', textClass: 'text-blocked' };
     }
   } else {
     if (outcome.task_success && !outcome.critical_violation) {
       return { stampClass: 'passed', text: '[CONFORMED]', headline: 'BENIGN WORKLOAD: LEGITIMATE TASK CONFORMED & COMPLETED', textClass: 'text-blocked' };
     } else {
-      return { stampClass: 'failed', text: '[DEVIATED]', headline: 'POLICY DEVIATION: UNEXPECTED ACTION DETECTED', textClass: 'text-leaked' };
+      return { stampClass: 'failed', text: '[TASK FAILED]', headline: outcome.critical_violation ? 'CRITICAL VIOLATION ON A BENIGN TASK' : 'BENIGN TASK DID NOT COMPLETE', textClass: 'text-leaked' };
     }
   }
 }

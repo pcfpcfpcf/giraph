@@ -30,9 +30,9 @@
       <div class="brand-sub">DEFENSE TEST HARNESS</div>
 
       <nav class="filter-tabs" aria-label="Scenario Filter">
-        <button class="tab-btn active" data-filter="all">ALL [28]</button>
-        <button class="tab-btn" data-filter="attacks">ATTACKS [14]</button>
-        <button class="tab-btn" data-filter="benign">BENIGN [14]</button>
+        <button class="tab-btn active" data-filter="all">ALL</button>
+        <button class="tab-btn" data-filter="attacks">ATTACKS</button>
+        <button class="tab-btn" data-filter="benign">BENIGN</button>
       </nav>
 
       <a href="/architecture" class="btn-arch-nav" title="Launch Interactive Cinematic Architecture Visualizer">
@@ -51,13 +51,14 @@
 
     <div class="harness-right">
       <div id="harness-telemetry" class="run-telemetry">
-        <div class="telemetry-item">TOTAL <strong id="telemetry-total">28</strong></div>
-        <div class="telemetry-item blocked">BLOCKED <strong id="telemetry-blocked">0</strong></div>
+        <div class="telemetry-item">TOTAL <strong id="telemetry-total">—</strong></div>
+        <div class="telemetry-item blocked">ATTACKS STOPPED <strong id="telemetry-blocked">0</strong></div>
         <div class="telemetry-item leaked">LEAKED <strong id="telemetry-leaked">0</strong></div>
+        <div class="telemetry-item errors">BENIGN FAILED <strong id="telemetry-benign-failed">0</strong></div>
       </div>
 
       <button id="btn-master-run" class="btn-action-master">
-        RUN ALL [28]
+        RUN ALL
       </button>
     </div>
 
@@ -81,7 +82,7 @@
        ======================================================================== -->
   <footer class="status-rail">
     <div class="rail-left">
-      <div id="specimen-counter" class="specimen-counter">SITUATION <b>01</b> <span>/ 28</span></div>
+      <div id="specimen-counter" class="specimen-counter">SITUATION <b>01</b> <span>/ —</span></div>
       <div style="width: 140px; height: 2px; background: rgba(255,255,255,0.06); position: relative; overflow: hidden; border-radius: 2px;">
         <div id="harness-progress" style="width: 0%; height: 100%; background: var(--accent-primary); transition: width 0.1s ease-out;"></div>
       </div>
@@ -104,7 +105,7 @@
     <!-- Top Command Bar: Title is the Situation Name -->
     <header class="inspector-command-bar">
       <div class="command-bar-left">
-        <span id="insp-num" class="specimen-pill">SITUATION 01 / 28</span>
+        <span id="insp-num" class="specimen-pill">SITUATION 01</span>
         <h1 id="insp-title" class="specimen-main-title">Direct request to mail a restricted token</h1>
       </div>
 
@@ -120,7 +121,7 @@
         <span id="insp-domain" class="tag-domain">ENTERPRISE</span>
         <span id="insp-type-badge" class="attack-spec-tag adversary">ADVERSARIAL ATTACK</span>
         <button id="insp-btn-execute" class="btn-command primary">[RE-TEST]</button>
-        <div id="insp-status-stamp" class="state-stamp passed">[BLOCKED]</div>
+        <div id="insp-status-stamp" class="state-stamp idle">[UNTESTED]</div>
         <button id="insp-btn-close" class="btn-command" title="Exit Fullscreen (ESC)">[CLOSE ESC]</button>
       </div>
     </header>
@@ -210,16 +211,20 @@
 
       <div class="summary-grid">
         <div class="summary-metric">
-          <div class="label">TOTAL EVALUATED</div>
+          <div class="label">SCENARIOS</div>
           <div id="sum-total" class="value">0</div>
         </div>
         <div class="summary-metric">
-          <div class="label">ATTACKS BLOCKED</div>
+          <div class="label">ATTACKS STOPPED</div>
           <div id="sum-blocked" class="value" style="color: var(--verdict-blocked);">0</div>
         </div>
         <div class="summary-metric">
-          <div class="label">LEAKED / BREACHED</div>
+          <div class="label">ATTACKS LEAKED</div>
           <div id="sum-leaked" class="value" style="color: var(--verdict-leaked);">0</div>
+        </div>
+        <div class="summary-metric">
+          <div class="label">BENIGN FAILED</div>
+          <div id="sum-benign-failed" class="value" style="color: var(--verdict-error);">0</div>
         </div>
         <div class="summary-metric">
           <div class="label">TOTAL RUNTIME</div>
